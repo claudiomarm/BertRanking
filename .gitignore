@@ -1,0 +1,17 @@
+# Arquivos grandes
+*.zip
+*.rar
+*.csv
+*.xls
+*.xlsx
+*.parquet
+*.pyc
+*.py-tpl
+*.mo
+*.jpg
+*.jpeg
+*.png
+*.svg
+*.txt
+*.md
+*.pdf

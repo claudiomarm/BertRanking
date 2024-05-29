@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "academic-fingerprint"
+version = "0.1.0"
+description = "Use of NLP for key concept extraction in scientific article abstracts"
+authors = ["Claudiomar Mendes de Moura Souza <csouza@fapesp.br>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+polars = "^0.20.30"
+requests = "^2.32.3"
+pandas = "^2.2.2"
+numpy = "^1.26.4"
+nltk = "^3.8.1"
+spacy = "^3.7.4"
+gensim = "^4.3.2"
+pyLDAvis = "^3.4.1"
+transformers = "^4.41.1"
+torch = "^2.3.0"
+tokenizers = "^0.19.1"
+scikit-learn = "^1.5.0"
+matplotlib = "^3.9.0"
+plotly = "^5.22.0"
+dash = "^2.17.0"
+dash-bootstrap-components = "^1.6.0"
+dash-bootstrap-templates = "^1.1.2"
+django = "^5.0.6"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
