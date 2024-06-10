@@ -29,6 +29,10 @@ django = "^5.0.6"
 pymupdf = "^1.24.5"
 scrapy = "^2.11.2"
 beautifulsoup4 = "^4.12.3"
+bs4 = "^0.0.2"
+bertopic = "^0.16.2"
+html5lib = "^1.1"
+datasets = "^2.19.2"
 
 
 [tool.poetry.group.dev.dependencies]

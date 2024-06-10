@@ -7,7 +7,7 @@ from spacy.lang.en.stop_words import STOP_WORDS
 from xml.etree import ElementTree as ET
 
 # Classe ETL
-class AbstractOpenAlexPubMed():
+class AbstractOpenAlexPubMedETL():
     def __init__(self, open_alex_concept_params={'search': 'health'}, open_alex_concept='Health psychology', open_alex_language ='en', open_alex_from_publication_date='2022-01-01', open_alex_to_publication_date='2024-12-31', open_alex_per_page=200):
         self.concept_params = open_alex_concept_params
         self.concept = open_alex_concept
@@ -132,7 +132,7 @@ class AbstractOpenAlexPubMed():
             if df is None:
                 df = pl.DataFrame(abstracts, **kwargs)
 
-            df.write_parquet(f'{load_path}{file_name}.parquet')
+            df.write_parquet(f'{load_path}/{file_name}.parquet')
 
         except requests.exceptions.RequestException as e:
             logging.error(f'Error: {str(e)}')
