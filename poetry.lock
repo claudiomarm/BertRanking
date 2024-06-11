@@ -5201,6 +5201,17 @@ MarkupSafe = ">=2.1.1"
 watchdog = ["watchdog (>=2.3)"]
 
 [[package]]
+name = "xlsx2csv"
+version = "0.8.2"
+description = "xlsx to csv converter"
+optional = false
+python-versions = "*"
+files = [
+    {file = "xlsx2csv-0.8.2-py3-none-any.whl", hash = "sha256:adcc76589d664f2bd597564851cc97c4d6b8825bb19d09c621e36baefa2d4274"},
+    {file = "xlsx2csv-0.8.2.tar.gz", hash = "sha256:cdd272c82f8b32f1cee76aeaef87b2ee3549661fddf90f7ecf2310967a16fc84"},
+]
+
+[[package]]
 name = "xxhash"
 version = "3.4.1"
 description = "Python binding for xxHash"
@@ -5491,4 +5502,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "efad319a3e41a3fc824e6369b64e1935bcd15b057b8533c1a6f15c43a83cf975"
+content-hash = "15ae5b5416bac2859f1a12094f8aa2a2b529ae9d456fe62248a68d42daf95692"
