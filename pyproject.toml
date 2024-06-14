@@ -34,6 +34,7 @@ bertopic = "^0.16.2"
 html5lib = "^1.1"
 datasets = "^2.19.2"
 xlsx2csv = "^0.8.2"
+nbformat = "^5.10.4"
 
 
 [tool.poetry.group.dev.dependencies]
