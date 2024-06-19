@@ -16,7 +16,7 @@ nltk = "^3.8.1"
 spacy = "^3.7.4"
 gensim = "^4.3.2"
 pyLDAvis = "^3.4.1"
-transformers = "^4.41.1"
+transformers = {extras = ["torch"], version = "^4.41.2"}
 torch = "^2.3.0"
 tokenizers = "^0.19.1"
 scikit-learn = "^1.5.0"
