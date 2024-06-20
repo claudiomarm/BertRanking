@@ -1,130 +1,84 @@
-# Modelagem de Tópicos de Resumos de Projetos FAPESP
+# Projeto de Modelagem de Tópicos de Resumos de Projetos Científicos Financiados pela FAPESP
 
-Este projeto tem como objetivo a modelagem de tópicos dos resumos de projetos financiados pela FAPESP. Os tópicos gerados serão utilizados para buscar no vocabulário controlado da USP os assuntos abordados em cada resumo.
+## Visão Geral
+
+Este projeto tem como objetivo realizar a modelagem de tópicos em resumos de projetos científicos financiados pela FAPESP. O intuito é mapear os assuntos abordados nos textos com base nos tópicos encontrados pela modelagem de tópicos. Esses tópicos serão utilizados para buscar os assuntos em um dicionário controlado da USP. 
+
+Para atingir esse objetivo, serão comparados dois modelos de BERTopic:
+1. Um BERTopic padrão ajustado aos dados.
+2. Um BERTopic com embeddings de um BERTimbau fine-tunado utilizando uma tarefa de Masked Language Modeling (MLM).
 
 ## Estrutura do Projeto
 
-O projeto é composto pelas seguintes etapas:
+### 1. Preparação dos Dados
 
-1. **Importação de Bibliotecas**
-2. **Carregamento e Pré-processamento dos Dados**
-3. **Divisão dos Dados em Treino e Teste**
-4. **Tokenização e Criação de Embeddings com XLM-RoBERTa**
-5. **Treinamento do Modelo XLM-RoBERTa**
-6. **Extração de Embeddings**
-7. **Treinamento do BERTopic**
-8. **Treinamento do BERTopic com Embeddings de XLM-RoBERTa**
+Os dados são extraídos de um arquivo Excel contendo informações sobre os projetos financiados. As principais variáveis extraídas incluem:
+- Número do Processo
+- Data de Início
+- Título (Português)
+- Grande Área do Conhecimento
+- Área do Conhecimento
+- Subárea do Conhecimento
+- Palavras-Chave do Processo
+- Assuntos
+- Resumo (Português)
 
-### 1. Importação de Bibliotecas
+Os dados são pré-processados e filtrados para garantir a qualidade dos textos que serão utilizados na modelagem de tópicos.
 
-Nesta etapa, as bibliotecas necessárias para o projeto são importadas, incluindo bibliotecas para manipulação de dados, processamento de linguagem natural, treinamento de modelos e visualização.
+### 2. Limpeza e Pré-Processamento de Texto
 
-### 2. Carregamento e Pré-processamento dos Dados
+Utilizamos a biblioteca spaCy para realizar a limpeza e pré-processamento dos textos, que inclui:
+- Remoção de caracteres especiais
+- Tokenização e remoção de stop words
+- Lematização dos textos
 
-#### Definição da Raiz do Projeto
+### 3. Treinamento do Modelo BERTimbau para MLM
 
-Definimos a raiz do projeto para facilitar o gerenciamento dos caminhos dos arquivos.
+O modelo BERTimbau é fine-tunado utilizando uma tarefa de Masked Language Modeling (MLM). O conjunto de dados é tokenizado e dividido em conjuntos de treino e teste para realizar o treinamento do modelo.
 
-#### Extração dos Dados
+### 4. Extração de Embeddings
 
-Os dados dos projetos financiados pela FAPESP são extraídos de um arquivo Excel.
+As embeddings dos textos são extraídas utilizando o modelo BERTimbau fine-tunado. Essas embeddings serão utilizadas posteriormente na modelagem de tópicos.
 
-#### Filtragem dos Dados
+### 5. Modelagem de Tópicos com BERTopic
 
-Os dados são filtrados para garantir que apenas os resumos com assuntos não nulos e da área de Medicina sejam utilizados.
+A modelagem de tópicos é realizada utilizando a biblioteca BERTopic. São treinados dois modelos:
+1. BERTopic padrão utilizando os textos limpos.
+2. BERTopic utilizando embeddings extraídas pelo BERTimbau fine-tunado.
 
-#### Carregamento do Modelo SpaCy
+### 6. Visualização e Análise
 
-Carregamos o modelo de linguagem em português do SpaCy para facilitar o pré-processamento dos textos.
+Os tópicos encontrados são visualizados e analisados para entender melhor os assuntos abordados nos resumos dos projetos científicos.
 
-#### Limpeza do Texto
+## Estrutura de Diretórios
 
-Os textos dos resumos são limpos, removendo caracteres especiais, stop words e realizando a lematização.
+- `data/`: Contém os dados utilizados no projeto.
+- `models/`: Contém os modelos treinados.
+- `tokenizers/`: Contém os tokenizers utilizados.
+- `results/`: Contém os resultados das avaliações dos modelos.
 
-### 3. Divisão dos Dados em Treino e Teste
+## Requisitos
 
-Os dados limpos são divididos em conjuntos de treino e teste para posterior treinamento e avaliação dos modelos.
+Para executar este projeto, você precisará das seguintes bibliotecas:
+- pandas
+- numpy
+- polars
+- spacy
+- sklearn
+- bertopic
+- transformers
+- torch
+- datasets
+- umap-learn
+- plotly
+- wordcloud
+- matplotlib
 
-### 4. Tokenização e Criação de Embeddings com XLM-RoBERTa
+## Como Executar
 
-Utilizamos o tokenizer do XLM-RoBERTa para tokenizar os textos limpos e criar embeddings que serão utilizados no treinamento do modelo de classificação.
-
-### 5. Treinamento do Modelo XLM-RoBERTa
-
-#### Criação do Dataset Customizado
-
-Criamos uma classe customizada para o Dataset, que facilita a manipulação dos dados durante o treinamento.
-
-#### Configuração do Modelo XLM-RoBERTa
-
-Carregamos o modelo XLM-RoBERTa pré-treinado e ajustamos a camada de classificação para multi-rótulo.
-
-#### Congelamento e Descongelamento de Camadas
-
-Congelamos todas as camadas do BERT e descongelamos as últimas 4 camadas para permitir o fine-tuning.
-
-#### Definição dos Hiperparâmetros
-
-Configuramos os hiperparâmetros, como taxa de aprendizado, batch size e número de épocas.
-
-#### Treinamento e Avaliação
-
-Treinamos o modelo XLM-RoBERTa e avaliamos seu desempenho utilizando métricas como acurácia, F1-score, recall e precisão.
-
-### 6. Extração de Embeddings
-
-Extraímos os embeddings dos textos utilizando o modelo XLM-RoBERTa treinado.
-
-### 7. Treinamento do BERTopic
-
-#### Configuração do BERTopic
-
-Configuramos o modelo BERTopic com UMAP e CountVectorizer para realizar a modelagem de tópicos nos textos limpos.
-
-#### Treinamento do BERTopic
-
-Treinamos o modelo BERTopic nos textos limpos.
-
-### 8. Treinamento do BERTopic com Embeddings de XLM-RoBERTa
-
-#### Extração de Embeddings em Lotes
-
-Utilizamos o modelo XLM-RoBERTa para extrair embeddings dos textos em lotes.
-
-#### Treinamento do BERTopic com Embeddings
-
-Treinamos o modelo BERTopic utilizando os embeddings extraídos dos textos.
-
-## Dependências
-
-As seguintes bibliotecas são necessárias para a execução do projeto:
-
-- `os`
-- `sys`
-- `pandas`
-- `numpy`
-- `polars`
-- `re`
-- `spacy`
-- `sklearn`
-- `bertopic`
-- `transformers`
-- `torch`
-- `umap`
-
-## Resultados Esperados
-
-Ao final da execução deste projeto, espera-se obter:
-
-### Modelos de Tópicos
-
-- Modelo BERTopic treinado sem embeddings.
-- Modelo BERTopic treinado com embeddings de XLM-RoBERTa.
-
-### Embeddings
-
-- Embeddings dos textos extraídos utilizando o modelo XLM-RoBERTa.
-
-### Métricas de Avaliação
-
-- Acurácia, F1-score, recall e precisão do modelo XLM
+1. **Preparação do Ambiente**: Instale todas as bibliotecas necessárias.
+2. **Extração e Pré-Processamento dos Dados**: Carregue e pré-processe os dados conforme descrito.
+3. **Treinamento do Modelo BERTimbau**: Fine-tune o modelo BERTimbau utilizando MLM.
+4. **Extração de Embeddings**: Extraia as embeddings dos textos limpos.
+5. **Modelagem de Tópicos**: Treine os modelos BERTopic e visualize os tópicos encontrados.
+6. **Análise dos Resultados**: Compare os tópicos encontrados e analise os resultados.
