@@ -408,11 +408,10 @@ class BertRanking():
                 
                 BATCH_SIZE = 8
                 test_dataset = test_dataset.map(self.generate_embeddings, batched=True, batch_size=BATCH_SIZE)
-                
+                test_dataset = test_dataset.map(self.rank_topics, batched=False)
+
                 self.save_dataset(test_dataset, self.embedding_path)
                 logging.info('test_dataset salvo com sucesso.')
-
-                test_dataset = test_dataset.map(self.rank_topics, batched=False)
 
             self.test_dataset = test_dataset
 
