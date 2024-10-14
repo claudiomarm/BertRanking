@@ -56,8 +56,6 @@ class BertRanking():
     
     def clean_text(self, text):
         try:
-            logging.info('Limpando texto...')
-
             if not isinstance(text, str):
                 raise ValueError("O argumento 'text' deve ser uma string.")
             
@@ -202,12 +200,12 @@ class BertRanking():
             logging.info('Gerando embeddings do dataset...')
 
             texts = dataset[text_col]
-            dataset['text_embedding'] = self.get_embeddings(texts, self.bert_model, self.tokenizer, batch_size=batch_size)
+            dataset['text_embedding'] = self.get_embeddings(texts, batch_size=batch_size)
             
             all_topics = dataset[topic_col]
             all_topics_embeddings = []
             for subjects in all_topics:
-                subjects_embeddings = self.get_embeddings(subjects, self.bert_model, self.tokenizer, batch_size=batch_size)
+                subjects_embeddings = self.get_embeddings(subjects, batch_size=batch_size)
                 all_topics_embeddings.append(subjects_embeddings)
             
             dataset['topics_embeddings'] = all_topics_embeddings
@@ -341,21 +339,8 @@ class BertRanking():
         except Exception as e:
             logging.error(f'Erro ao calcular similaridade de cosseno: {str(e)}')
     
-    def monitor_resources(self, interval=2):
-        
-        logging.info("Iniciando monitoramento de recursos...")
-        self.monitoring = True
-        while self.monitoring:
-            cpu_usage = psutil.cpu_percent(interval=None)
-            memory_usage = psutil.virtual_memory().percent
-            logging.info(f"Uso de CPU: {cpu_usage}% | Uso de Memória: {memory_usage}%")
-            time.sleep(interval)
-    
     def execute(self, test_size=0.2):
         try:
-            monitor_thread = threading.Thread(target=self.monitor_resources, args=(2,))
-            monitor_thread.start()
-
             start = time.time()
             logging.info('Iniciando o pipeline de execução...')
 
@@ -443,17 +428,12 @@ class BertRanking():
             end = time.time() - start
             logging.info(f'Execução concluída em {end:.2f} segundos.')
 
-            self.monitoring = False
-            monitor_thread.join()
-
         except Exception as e:
             logging.error(f'{str(e)}')
-
-
+            
 if __name__ == '__main__':
-    data_path = os.path.join(PROJECT_ROOT, 'data', 'internal', 'fapesp_projects')
-    file_name = f'{data_path}/all_process.xlsx'
-    embedding_path = f'{data_path}/test_dataset_with_embeddings.parquet'
+    file_name = os.path.join(PROJECT_ROOT, 'data', 'internal', 'fapesp_projects', 'all_process.xlsx')
+    embedding_path = os.path.join(PROJECT_ROOT, 'data', 'processed', 'fapesp_projects', 'test_dataset_with_embeddings.parquet')
 
     model_path = os.path.join(PROJECT_ROOT, 'models')
     tokenizer_path = os.path.join(PROJECT_ROOT, 'tokenizers')
