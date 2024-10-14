@@ -183,15 +183,19 @@ class BertRanking():
                 inputs = self.tokenizer(batch_texts, return_tensors="pt", truncation=True, padding="max_length", max_length=max_length).to(self.bert_model.device)
 
                 with torch.no_grad():
-                    outputs = self.bert_model(**inputs)
+                    outputs = self.bert_model(**inputs, output_hidden_states=True)  # Habilitar a saída dos hidden_states
 
-                batch_embeddings = outputs.last_hidden_state.mean(dim=1).cpu().numpy()
+                # Obtenha a última camada oculta dos hidden_states
+                hidden_states = outputs.hidden_states
+                last_hidden_state = hidden_states[-1]  # A última camada da saída oculta
+
+                batch_embeddings = last_hidden_state.mean(dim=1).cpu().numpy()  # Calcular a média ao longo das tokens
                 all_embeddings.append(batch_embeddings)
 
             all_embeddings = np.vstack(all_embeddings)
 
             return all_embeddings
-        
+
         except Exception as e:
             logging.error(f'Erro ao gerar embeddings: {str(e)}')
 
