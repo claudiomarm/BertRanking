@@ -369,6 +369,8 @@ class BertRanking():
         try:
             start = time.time()
             logging.info('Iniciando o pipeline de execução...')
+            os.makedirs(self.processed_data_path, exist_ok=True)
+
             tokenized_test_dataset_path = os.path.join(self.processed_data_path, 'tokenized_test_dataset.parquet')
             models_similarities_path = os.path.join(self.processed_data_path, 'bert_similarities.json')
 
@@ -392,6 +394,8 @@ class BertRanking():
                 for model_name, opt in self.dict_models.items():
                     s3 = time.time()
                     logging.info(f'Iniciando tokenização para {model_name}...')
+                    tokenized_test_dataset_model_path = os.path.join(self.processed_data_path, f'tokenized_test_dataset_{model_name}.parquet')
+                    models_similarities_model_path = os.path.join(self.processed_data_path, f'bert_similarities_{model_name}.json')
 
                     model, model_path, tokenizer_path, results_path = (
                         opt['model'], opt['model_path'], opt['tokenizer_path'], opt['results_path']
@@ -400,7 +404,9 @@ class BertRanking():
                     os.makedirs(model_path, exist_ok=True)
                     os.makedirs(tokenizer_path, exist_ok=True)
                     os.makedirs(results_path, exist_ok=True)
-
+                    os.makedirs(tokenized_test_dataset_model_path, exist_ok=True)
+                    os.makedirs(models_similarities_model_path, exist_ok=True)
+                    
                     tokenizer, bert_model = (
                         BertTokenizer.from_pretrained(model), BertForMaskedLM.from_pretrained(model)
                     )
@@ -450,7 +456,7 @@ class BertRanking():
                     tokenized_test_dataset = tokenized_test_dataset.map(
                         self.generate_embeddings, batched=True, batch_size=BATCH_SIZE, fn_kwargs={'model_name': model_name, 'tokenizer': tokenizer, 'bert_model': bert_model})
                     
-                    tokenized_test_dataset = tokenized_test_dataset.map(self.rank_topics, batched=False)
+                    tokenized_test_dataset = tokenized_test_dataset.map(self.rank_topics, batched=False, fn_kwargs={'text_embedding_col': f'text_embedding_{model_name}', 'topics_embeddings_col': f'topics_embeddings_{model_name}'})
                     
                     end4 = time.time() - s4
                     logging.info(f'Geração de embeddings e ranqueamento de tópicos para {model_name} concluídos em {end4:.2f} segundos.')
@@ -463,6 +469,11 @@ class BertRanking():
                     models_similarities[model_name] = bert_similarities
                     end5 = time.time() - s5
                     logging.info(f'Cálculo da similaridade semântica para o modelo {model_name} concluída em {end5:.2f} segundos.')
+
+                    self.save_dataset(tokenized_test_dataset, tokenized_test_dataset_model_path)
+
+                    with open(models_similarities_model_path, 'w') as f:
+                        json.dump(models_similarities, f)
 
                 self.save_dataset(tokenized_test_dataset, tokenized_test_dataset_path)
 
@@ -494,17 +505,17 @@ if __name__ == '__main__':
     results_path = os.path.join(model_path, 'results')
 
     dict_models = {
+        'BERT': {
+            'model': 'bert-base-multilingual-cased',
+            'model_path': os.path.join(model_path, 'BERT'),
+            'tokenizer_path': os.path.join(tokenizer_path, 'BERT'),
+            'results_path': os.path.join(results_path, 'BERT'),
+        },
         'BERTimbau': {
             'model': 'neuralmind/bert-base-portuguese-cased',
             'model_path': os.path.join(model_path, 'BERTimbau'),
             'tokenizer_path': os.path.join(tokenizer_path, 'BERTimbau'),
             'results_path': os.path.join(results_path, 'BERTimbau'),
-        },
-        'RoBERTa': {
-            'model': 'deepset/roberta-base-squad2',
-            'model_path': os.path.join(model_path, 'RoBERTa'),
-            'tokenizer_path': os.path.join(tokenizer_path, 'RoBERTa'),
-            'results_path': os.path.join(results_path, 'RoBERTa'),
         }
     }
 
