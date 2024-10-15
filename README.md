@@ -1,84 +1,112 @@
-# Projeto de Modelagem de Tópicos de Resumos de Projetos Científicos Financiados pela FAPESP
+### README - Projeto BertRanking
+
+---
 
 ## Visão Geral
 
-Este projeto tem como objetivo realizar a modelagem de tópicos em resumos de projetos científicos financiados pela FAPESP. O intuito é mapear os assuntos abordados nos textos com base nos tópicos encontrados pela modelagem de tópicos. Esses tópicos serão utilizados para buscar os assuntos em um dicionário controlado da USP. 
+O **BertRanking** compara modelos de linguagem, como **BERTimbau** e **RoBERTa**, para ranquear tópicos de artigos científicos. Utiliza embeddings de cada modelo para medir a relevância dos tópicos com base na similaridade semântica.
 
-Para atingir esse objetivo, serão comparados dois modelos de BERTopic:
-1. Um BERTopic padrão ajustado aos dados.
-2. Um BERTopic com embeddings de um BERTimbau fine-tunado utilizando uma tarefa de Masked Language Modeling (MLM).
+---
 
 ## Estrutura do Projeto
 
-### 1. Preparação dos Dados
+- **Classe BertRanking**: Carrega, limpa, tokeniza, treina os modelos, gera embeddings e ranqueia tópicos.
+- **Processamento de Dados**: Limpeza e preparação de dados de artigos científicos.
+- **Comparação de Modelos**: Avalia os modelos com base na similaridade semântica.
 
-Os dados são extraídos de um arquivo Excel contendo informações sobre os projetos financiados. As principais variáveis extraídas incluem:
-- Número do Processo
-- Data de Início
-- Título (Português)
-- Grande Área do Conhecimento
-- Área do Conhecimento
-- Subárea do Conhecimento
-- Palavras-Chave do Processo
-- Assuntos
-- Resumo (Português)
+---
 
-Os dados são pré-processados e filtrados para garantir a qualidade dos textos que serão utilizados na modelagem de tópicos.
+## Funcionalidades
 
-### 2. Limpeza e Pré-Processamento de Texto
+- **Importação e Preprocessamento**: Carrega e limpa dados do Excel.
+- **Tokenização**: Tokeniza o texto com os tokenizadores do BERT e RoBERTa.
+- **Treinamento**: Treina modelos com MLM (Masked Language Modeling).
+- **Geração de Embeddings**: Gera embeddings de textos e tópicos.
+- **Ranqueamento de Tópicos**: Ranqueia tópicos com base na similaridade de cosseno.
+- **Avaliação**: Compara modelos com precisão, recall, NDCG e similaridade semântica.
 
-Utilizamos a biblioteca spaCy para realizar a limpeza e pré-processamento dos textos, que inclui:
-- Remoção de caracteres especiais
-- Tokenização e remoção de stop words
-- Lematização dos textos
-
-### 3. Treinamento do Modelo BERTimbau para MLM
-
-O modelo BERTimbau é fine-tunado utilizando uma tarefa de Masked Language Modeling (MLM). O conjunto de dados é tokenizado e dividido em conjuntos de treino e teste para realizar o treinamento do modelo.
-
-### 4. Extração de Embeddings
-
-As embeddings dos textos são extraídas utilizando o modelo BERTimbau fine-tunado. Essas embeddings serão utilizadas posteriormente na modelagem de tópicos.
-
-### 5. Modelagem de Tópicos com BERTopic
-
-A modelagem de tópicos é realizada utilizando a biblioteca BERTopic. São treinados dois modelos:
-1. BERTopic padrão utilizando os textos limpos.
-2. BERTopic utilizando embeddings extraídas pelo BERTimbau fine-tunado.
-
-### 6. Visualização e Análise
-
-Os tópicos encontrados são visualizados e analisados para entender melhor os assuntos abordados nos resumos dos projetos científicos.
-
-## Estrutura de Diretórios
-
-- `data/`: Contém os dados utilizados no projeto.
-- `models/`: Contém os modelos treinados.
-- `tokenizers/`: Contém os tokenizers utilizados.
-- `results/`: Contém os resultados das avaliações dos modelos.
+---
 
 ## Requisitos
 
-Para executar este projeto, você precisará das seguintes bibliotecas:
-- pandas
-- numpy
-- polars
-- spacy
-- sklearn
-- bertopic
-- transformers
-- torch
-- datasets
-- umap-learn
-- plotly
-- wordcloud
-- matplotlib
+- Python 3.7+
+- Instalar dependências:
 
-## Como Executar
+```bash
+poetry install
+```
 
-1. **Preparação do Ambiente**: Instale todas as bibliotecas necessárias.
-2. **Extração e Pré-Processamento dos Dados**: Carregue e pré-processe os dados conforme descrito.
-3. **Treinamento do Modelo BERTimbau**: Fine-tune o modelo BERTimbau utilizando MLM.
-4. **Extração de Embeddings**: Extraia as embeddings dos textos limpos.
-5. **Modelagem de Tópicos**: Treine os modelos BERTopic e visualize os tópicos encontrados.
-6. **Análise dos Resultados**: Compare os tópicos encontrados e analise os resultados.
+---
+
+## Execução
+
+1. **Configurar Caminhos**: Definir os caminhos de dados, modelos e saídas.
+2. **Treinar Modelos**: Caso não estejam treinados, os modelos serão treinados.
+3. **Gerar Embeddings**: Embeddings dos textos e tópicos serão gerados.
+4. **Ranquear Tópicos**: Tópicos serão ranqueados pela similaridade.
+5. **Rodar o Projeto**:
+
+```bash
+python caminho_para_o_script.py
+```
+
+---
+
+## Estrutura de Arquivos
+
+```
+BertRanking/
+├───data
+│   ├───internal
+│   │   ├───fapesp_forms
+│   │   └───fapesp_projects
+│   └───processed
+│       └───fapesp_projects
+├───models
+│   ├───BERTimbau
+│   │   └───results
+│   └───RoBERTa
+│       └───results
+├───notebooks
+├───src
+│   ├───etl
+│   │   └───__pycache__
+│   ├───nlp_pipeline
+│   ├───util
+│   └───visualization
+│       ├───dashboard
+│       └───static
+└───tokenizers
+    ├───BERTimbau
+    └───RoBERTa
+```
+
+---
+
+## Métodos Principais
+
+- **`import_data`**: Carrega os dados de artigos.
+- **`clean_text`**: Limpa e prepara os textos.
+- **`tokenize_function`**: Tokeniza textos.
+- **`train_model`**: Treina ou ajusta os modelos.
+- **`get_embeddings`**: Gera embeddings de textos e tópicos.
+- **`rank_topics_by_relevance`**: Ranqueia tópicos por relevância.
+- **`compare_models_by_semantic_similarity`**: Compara similaridade entre os modelos.
+
+---
+
+## Resultados
+
+- **Similaridade de Cosseno**: Média e desvio padrão entre textos e tópicos.
+- **Ranqueamento de Tópicos**: Métricas de precisão, recall e NDCG (caso haja validação).
+- **Visualização**: Gráficos de similaridade para comparação entre os modelos.
+
+---
+
+## Autor
+
+- Desenvolvido por [Claudiomar Mendes]. 
+
+--- 
+
+Este README apresenta o projeto **BertRanking**, que ranqueia tópicos de artigos científicos usando os modelos **BERTimbau** e **RoBERTa**.

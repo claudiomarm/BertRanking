@@ -378,6 +378,8 @@ class BertRanking():
                 data = self.import_data()
                 logging.info(f'Dados carregados com sucesso.')
 
+                os.makedirs(self.processed_data_path, exist_ok=True)
+                
                 processed_data = self.prepare_data(data)
                 dataset = Dataset.from_pandas(processed_data)
 
@@ -394,6 +396,10 @@ class BertRanking():
                     model, model_path, tokenizer_path, results_path = (
                         opt['model'], opt['model_path'], opt['tokenizer_path'], opt['results_path']
                     )
+
+                    os.makedirs(model_path, exist_ok=True)
+                    os.makedirs(tokenizer_path, exist_ok=True)
+                    os.makedirs(results_path, exist_ok=True)
 
                     tokenizer, bert_model = (
                         BertTokenizer.from_pretrained(model), BertForMaskedLM.from_pretrained(model)
