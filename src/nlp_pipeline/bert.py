@@ -496,15 +496,15 @@ if __name__ == '__main__':
     dict_models = {
         'BERTimbau': {
             'model': 'neuralmind/bert-base-portuguese-cased',
-            'model_path': os.path.join(model_path, 'bertimbal'),
-            'tokenizer_path': os.path.join(tokenizer_path, 'bertimbal'),
-            'results_path': os.path.join(results_path, 'bertimbal'),
+            'model_path': os.path.join(model_path, 'BERTimbau'),
+            'tokenizer_path': os.path.join(tokenizer_path, 'BERTimbau'),
+            'results_path': os.path.join(results_path, 'BERTimbau'),
         },
         'RoBERTa': {
             'model': 'deepset/roberta-base-squad2',
-            'model_path': os.path.join(model_path, 'roberta'),
-            'tokenizer_path': os.path.join(tokenizer_path, 'roberta'),
-            'results_path': os.path.join(results_path, 'roberta'),
+            'model_path': os.path.join(model_path, 'RoBERTa'),
+            'tokenizer_path': os.path.join(tokenizer_path, 'RoBERTa'),
+            'results_path': os.path.join(results_path, 'RoBERTa'),
         }
     }
 
