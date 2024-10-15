@@ -7,15 +7,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 from transformers import BertTokenizer, BertForMaskedLM, DataCollatorForLanguageModeling, Trainer, TrainingArguments, BertModel
 import torch
 from datasets import Dataset
-import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
-import psutil
 import re
 import logging
 import logging.config
-import threading
+import json
 
 # Definicao da raiz do projeto
 PROJECT_ROOT = 'G:/Csouza/nlp/topic_modeling'
@@ -23,14 +21,11 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 
 class BertRanking():
-    def __init__(self, model_path, tokenizer_path, results_path, embedding_path, file_name, pretrained_model='neuralmind/bert-base-portuguese-cased'):
+    def __init__(self, file_name, dict_models, processed_data_path):
         self.file_name = file_name
-        self.pretrained_model = pretrained_model
-        self.model_path = model_path
-        self.tokenizer_path = tokenizer_path
-        self.results_path = results_path
-        self.embedding_path = embedding_path
-
+        self.dict_models = dict_models
+        self.processed_data_path = processed_data_path
+        
         self.variables = {
             'N. Processo_B.V': 'n_processo',
             'Data de Início': 'data',
@@ -42,9 +37,6 @@ class BertRanking():
             'Assuntos': 'assuntos',
             'Resumo (Português)': 'resumo'}
         
-        self.tokenizer = BertTokenizer.from_pretrained('neuralmind/bert-base-portuguese-cased')
-        self.bert_model = BertForMaskedLM.from_pretrained('neuralmind/bert-base-portuguese-cased')
-    
     def import_data(self, sheet_name='Sheet1'):
         try:
             logging.info('Importando dados da planilha...')
@@ -101,16 +93,16 @@ class BertRanking():
         except Exception as e:
             logging.error(f'Erro ao preparar dados: {str(e)}')
 
-    def tokenize_function(self, dataset):
+    def tokenize_function(self, dataset, tokenizer):
         try:
             logging.info('Tokenizando textos...')
             
-            return self.tokenizer(dataset['cleaned_text'], padding="max_length", truncation=True, max_length=512)
+            return tokenizer(dataset['cleaned_text'], padding="max_length", truncation=True, max_length=512)
         
         except Exception as e:
             logging.error(f'Erro na tokenização: {str(e)}')
 
-    def train_model(self, train_dataset, test_dataset, data_collator, model_path, tokenizer_path, output_dir, overwrite_output_dir=True, save_steps=10_000, save_total_limit=2, prediction_loss_only=True, num_train_epochs=3, per_device_train_batch_size=8):
+    def train_model(self, bert_model, tokenizer, train_dataset, test_dataset, data_collator, model_path, tokenizer_path, output_dir, overwrite_output_dir=True, save_steps=10_000, save_total_limit=2, prediction_loss_only=True, num_train_epochs=3, per_device_train_batch_size=8):
         try:
             logging.info('Treinando o modelo...') 
         
@@ -128,7 +120,7 @@ class BertRanking():
             )
 
             trainer = Trainer(
-                model=self.bert_model,
+                model=bert_model,
                 args=training_args,
                 data_collator=data_collator,
                 train_dataset=train_dataset,
@@ -141,7 +133,7 @@ class BertRanking():
                 trainer.save_model(model_path)
             
             if tokenizer_path:
-                self.tokenizer.save_pretrained(tokenizer_path)
+                tokenizer.save_pretrained(tokenizer_path)
             
             return trainer
         
@@ -166,24 +158,24 @@ class BertRanking():
         except Exception as e:
                 logging.error(f'Erro na avaliação do modelo: {str(e)}')
 
-    def get_embeddings(self, texts, max_length=512, batch_size=8):
+    def get_embeddings(self, texts, tokenizer, bert_model, max_length=512, batch_size=8):
         try:
             logging.info('Gerando embeddings...')
 
-            if not hasattr(self.bert_model, "is_on_device"):
+            if not hasattr(bert_model, "is_on_device"):
                 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-                self.bert_model.to(device)
-                self.bert_model.is_on_device = True
+                bert_model.to(device)
+                bert_model.is_on_device = True
 
             all_embeddings = []
 
             for i in range(0, len(texts), batch_size):
                 batch_texts = texts[i:i + batch_size]
 
-                inputs = self.tokenizer(batch_texts, return_tensors="pt", truncation=True, padding="max_length", max_length=max_length).to(self.bert_model.device)
+                inputs = tokenizer(batch_texts, return_tensors="pt", truncation=True, padding="max_length", max_length=max_length).to(bert_model.device)
 
                 with torch.no_grad():
-                    outputs = self.bert_model(**inputs, output_hidden_states=True)  # Habilitar a saída dos hidden_states
+                    outputs = bert_model(**inputs, output_hidden_states=True)  # Habilitar a saída dos hidden_states
 
                 # Obtenha a última camada oculta dos hidden_states
                 hidden_states = outputs.hidden_states
@@ -199,20 +191,20 @@ class BertRanking():
         except Exception as e:
             logging.error(f'Erro ao gerar embeddings: {str(e)}')
 
-    def generate_embeddings(self, dataset, text_col='cleaned_text', topic_col='topics', batch_size=8):
+    def generate_embeddings(self, dataset, tokenizer, bert_model, text_col='cleaned_text', topic_col='topics', batch_size=8, model_name='bertimbal'):
         try:
             logging.info('Gerando embeddings do dataset...')
 
             texts = dataset[text_col]
-            dataset['text_embedding'] = self.get_embeddings(texts, batch_size=batch_size)
+            dataset[f'text_embedding_{model_name}'] = self.get_embeddings(texts=texts, tokenizer=tokenizer, bert_model=bert_model, batch_size=batch_size)
             
             all_topics = dataset[topic_col]
             all_topics_embeddings = []
             for subjects in all_topics:
-                subjects_embeddings = self.get_embeddings(subjects, batch_size=batch_size)
+                subjects_embeddings = self.get_embeddings(texts=subjects, tokenizer=tokenizer, bert_model=bert_model, batch_size=batch_size)
                 all_topics_embeddings.append(subjects_embeddings)
             
-            dataset['topics_embeddings'] = all_topics_embeddings
+            dataset[f'topics_embeddings_{model_name}'] = all_topics_embeddings
 
             return dataset
         
@@ -343,104 +335,172 @@ class BertRanking():
         except Exception as e:
             logging.error(f'Erro ao calcular similaridade de cosseno: {str(e)}')
     
+    def compare_models_by_semantic_similarity(self, m1_similarities, m1_name, m2_similarities, m2_name):
+        mean_m1_similarity = np.mean(m1_similarities)
+        mean_m2_similarity = np.mean(m2_similarities)
+
+        std_m1_similarity = np.std(m1_similarities)
+        std_m2_similarity = np.std(m2_similarities)
+
+        logging.info(f'Média Similaridade ({m1_name}): {mean_m1_similarity:.2f}')
+        logging.info(f'Média Similaridade ({m2_name}): {mean_m2_similarity:.2f}')
+        logging.info(f'Desvio Padrão Similaridade ({m1_name}): {std_m1_similarity:.2f}')
+        logging.info(f'Desvio Padrão Similaridade ({m2_name}): {std_m2_similarity:.2f}')
+        
+        # Plotando a Distribuição das Similaridades
+        plt.figure(figsize=(10, 6))
+        sns.histplot(m1_similarities, color='blue', label='BERTimbau', kde=True, bins=20)
+        sns.histplot(m2_similarities, color='green', label='RoBERTa', kde=True, bins=20)
+        plt.title('Distribuição das Similaridades de Cosseno: BERTimbau vs RoBERTa')
+        plt.xlabel('Similaridade de Cosseno')
+        plt.ylabel('Frequência')
+        plt.legend()
+        plt.show()
+
+        # Boxplot para Comparação de Similaridades
+        plt.figure(figsize=(8, 6))
+        sns.boxplot(data=[m1_similarities, m2_similarities], palette='Set2')
+        plt.xticks([0, 1], ['BERTimbau', 'RoBERTa'])
+        plt.title('Comparação da Similaridade de Cosseno: BERTimbau vs RoBERTa')
+        plt.ylabel('Similaridade de Cosseno')
+        plt.show()
+    
     def execute(self, test_size=0.2):
         try:
             start = time.time()
             logging.info('Iniciando o pipeline de execução...')
+            tokenized_test_dataset_path = os.path.join(self.processed_data_path, 'tokenized_test_dataset.parquet')
+            models_similarities_path = os.path.join(self.processed_data_path, 'bert_similarities.json')
 
-            s1 = time.time()
-            data = self.import_data()
-            logging.info(f'Dados carregados com sucesso.')
+            models_similarities = {}
+            if not os.path.exists(models_similarities_path):
+                s1 = time.time()
+                data = self.import_data()
+                logging.info(f'Dados carregados com sucesso.')
 
-            end1 = time.time() - s1
-            logging.info(f'Importação dos dados concluída em {end1:.2f} segundos.')
+                processed_data = self.prepare_data(data)
+                dataset = Dataset.from_pandas(processed_data)
+
+                train_test_split = dataset.train_test_split(test_size=test_size)
+                train_dataset, test_dataset = train_test_split['train'], train_test_split['test']
+
+                end1 = time.time() - s1
+                logging.info(f'Importação e divisão dos dados concluídas em {end1:.2f} segundos.')
+
+                for model_name, opt in self.dict_models.items():
+                    s3 = time.time()
+                    logging.info(f'Iniciando tokenização para {model_name}...')
+
+                    model, model_path, tokenizer_path, results_path = (
+                        opt['model'], opt['model_path'], opt['tokenizer_path'], opt['results_path']
+                    )
+
+                    tokenizer, bert_model = (
+                        BertTokenizer.from_pretrained(model), BertForMaskedLM.from_pretrained(model)
+                    )
+
+                    tokenized_train_dataset = train_dataset.map(self.tokenize_function, batched=True, fn_kwargs={'tokenizer': tokenizer})
+                    tokenized_test_dataset = test_dataset.map(self.tokenize_function, batched=True, fn_kwargs={'tokenizer': tokenizer})
+
+                    end3 = time.time() - s3
+                    logging.info(f'Tokenização para {model_name} concluída em {end3:.2f} segundos.')
+                    
+                    s4 = time.time()
+                    logging.info(f'Iniciando treinamento|importação do modelo {model_name}...')
+
+                    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=0.15)
+
+                    model_exists, tokenizer_exists = (
+                        os.path.isfile(os.path.join(model_path, 'model.safetensors')) and os.path.isfile(os.path.join(model_path, 'config.json')),
+                        os.path.isfile(os.path.join(tokenizer_path, 'vocab.txt'))
+                    )
+
+                    if not model_exists or not tokenizer_exists:
+                        logging.info(f'Modelo {model_name} não encontrado. Iniciando o treinamento...')
+                        trainer = self.train_model(
+                            bert_model=bert_model,
+                            tokenizer=tokenizer,
+                            train_dataset=tokenized_train_dataset,
+                            test_dataset=tokenized_test_dataset,
+                            data_collator=data_collator,
+                            model_path=model_path,
+                            tokenizer_path=tokenizer_path,
+                            output_dir=results_path
+                        )
+
+                        metrics = self.evaluate_model(trainer, tokenized_test_dataset)
+                        logging.info(f'Metrics for {model_name}: {metrics}')
+
+                    tokenizer, bert_model = (
+                        BertTokenizer.from_pretrained(tokenizer_path), BertModel.from_pretrained(model_path)
+                    )
+
+                    end4 = time.time() - s4
+                    logging.info(f'Treinamento|importação do modelo {model_name} concluído em {end4:.2f} segundos.')
+
+                    s4 = time.time()
+                    
+                    BATCH_SIZE = 8
+                    tokenized_test_dataset = tokenized_test_dataset.map(
+                        self.generate_embeddings, batched=True, batch_size=BATCH_SIZE, fn_kwargs={'model_name': model_name, 'tokenizer': tokenizer, 'bert_model': bert_model})
+                    
+                    tokenized_test_dataset = tokenized_test_dataset.map(self.rank_topics, batched=False)
+                    
+                    end4 = time.time() - s4
+                    logging.info(f'Geração de embeddings e ranqueamento de tópicos para {model_name} concluídos em {end4:.2f} segundos.')
+
+                    s5 = time.time()
+                    bert_similarities = self.calculate_mean_cosine_similarity(
+                        tokenized_test_dataset[f'text_embedding_{model_name}'], tokenized_test_dataset[f'topics_embeddings_{model_name}']
+                    )
+
+                    models_similarities[model_name] = bert_similarities
+                    end5 = time.time() - s5
+                    logging.info(f'Cálculo da similaridade semântica para o modelo {model_name} concluída em {end5:.2f} segundos.')
+
+                self.save_dataset(tokenized_test_dataset, tokenized_test_dataset_path)
+
+                with open(models_similarities_path, 'w') as f:
+                    json.dump(models_similarities, f)
             
+            models_similarities = json.load(open(models_similarities_path, 'r'))
 
-            s2 = time.time()
-            processed_data = self.prepare_data(data)
+            model_names = list(models_similarities.keys())
 
-            dataset = Dataset.from_pandas(processed_data)
+            m1_name, m2_name = model_names[0], model_names[1]
+            m1_similarities, m2_similarities = models_similarities[m1_name], models_similarities[m2_name]
 
-            tokenized_datasets = dataset.map(self.tokenize_function, batched=True)
-
-            train_test_split = tokenized_datasets.train_test_split(test_size=test_size)
-            train_dataset, test_dataset = (
-                train_test_split['train'],
-                train_test_split['test']
-            )
-
-            data_collator = DataCollatorForLanguageModeling(tokenizer=self.tokenizer, mlm=True, mlm_probability=0.15)
-
-            end2 = time.time() - s2
-            logging.info(f'Preparação dos dados concluída em {end2:.2f} segundos.')
-            
-            s3 = time.time()
-            model_exists, tokenizer_exists = (
-                os.path.isfile(os.path.join(self.model_path, 'model.safetensors')) and os.path.isfile(os.path.join(self.model_path, 'config.json')),
-                os.path.isfile(os.path.join(self.tokenizer_path, 'vocab.txt'))
-            )
-
-            # Treinar o modelo se ele não existir
-            if not model_exists or not tokenizer_exists:
-                logging.info('Modelo treinado não encontrado. Iniciando o treinamento...')
-                trainer = self.train_model(
-                    model=bert_model,
-                    tokenizer=tokenizer,
-                    train_dataset=train_dataset,
-                    test_dataset=test_dataset,
-                    data_collator=data_collator,
-                    model_path=self.model_path,
-                    tokenizer_path=self.tokenizer_path,
-                    output_dir=self.results_path
-                )
-
-                metrics = self.evaluate_model(trainer, test_dataset)
-                logging.info(f'Metrics: {metrics}')
-
-            tokenizer = BertTokenizer.from_pretrained(self.tokenizer_path)
-            bert_model = BertModel.from_pretrained(self.model_path)
-
-            end3 = time.time() - s3
-            logging.info(f'Tokenização concluída em {end3:.2f} segundos.')
-
-            s4 = time.time()
-            if os.path.exists(self.embedding_path):
-                logging.info('Carregando test_dataset do arquivo salvo...')
-                test_dataset = self.load_dataset(self.embedding_path)
-            else:
-                logging.info('Gerando embeddings e salvando test_dataset...')
-                
-                BATCH_SIZE = 8
-                test_dataset = test_dataset.map(self.generate_embeddings, batched=True, batch_size=BATCH_SIZE)
-                test_dataset = test_dataset.map(self.rank_topics, batched=False)
-
-                self.save_dataset(test_dataset, self.embedding_path)
-                logging.info('test_dataset salvo com sucesso.')
-
-            self.test_dataset = test_dataset
-
-            end4 = time.time() - s4
-            logging.info(f'Treinamento do modelo concluído em {end4:.2f} segundos.')
-
-            s5 = time.time()
-            self.bert_similarities = self.calculate_mean_cosine_similarity(test_dataset['text_embedding'], test_dataset['topics_embeddings'])
-
-            end5 = time.time() - s5
-            logging.info(f'Cálculo da similaridade semântica concluída em {end5:.2f} segundos.')
+            self.compare_models_by_semantic_similarity(m1_similarities=m1_similarities, m1_name=m1_name, m2_similarities=m2_similarities, m2_name=m2_name)
 
             end = time.time() - start
-            logging.info(f'Execução concluída em {end:.2f} segundos.')
+            logging.info(f'Execução completa em {end:.2f} segundos.')
 
         except Exception as e:
             logging.error(f'{str(e)}')
+
             
 if __name__ == '__main__':
-    file_name = os.path.join(PROJECT_ROOT, 'data', 'internal', 'fapesp_projects', 'all_process.xlsx')
-    embedding_path = os.path.join(PROJECT_ROOT, 'data', 'processed', 'fapesp_projects', 'test_dataset_with_embeddings.parquet')
+    file_path = os.path.join(PROJECT_ROOT, 'data', 'internal', 'fapesp_projects', 'all_process.xlsx')
+    processed_data_path = os.path.join(PROJECT_ROOT, 'data', 'processed', 'fapesp_projects')
 
     model_path = os.path.join(PROJECT_ROOT, 'models')
     tokenizer_path = os.path.join(PROJECT_ROOT, 'tokenizers')
     results_path = os.path.join(model_path, 'results')
+
+    dict_models = {
+        'BERTimbau': {
+            'model': 'neuralmind/bert-base-portuguese-cased',
+            'model_path': os.path.join(model_path, 'bertimbal'),
+            'tokenizer_path': os.path.join(tokenizer_path, 'bertimbal'),
+            'results_path': os.path.join(results_path, 'bertimbal'),
+        },
+        'RoBERTa': {
+            'model': 'deepset/roberta-base-squad2',
+            'model_path': os.path.join(model_path, 'roberta'),
+            'tokenizer_path': os.path.join(tokenizer_path, 'roberta'),
+            'results_path': os.path.join(results_path, 'roberta'),
+        }
+    }
 
     # Configuracao do logger
     logging.basicConfig(filename='BertRanking.log', level=logging.DEBUG, format='%(levelname)s: %(asctime)s - %(message)s')
@@ -450,5 +510,5 @@ if __name__ == '__main__':
 
     os.environ['NLS_LANG'] = 'AMERICAN_AMERICA.WE8ISO8859P1'
     
-    BertRanking = BertRanking(model_path=model_path, tokenizer_path=tokenizer_path, results_path=results_path, embedding_path=embedding_path, file_name=file_name)
+    BertRanking = BertRanking(file_path=file_path, dict_models=dict_models, processed_data_path=processed_data_path)
     BertRanking.execute()
