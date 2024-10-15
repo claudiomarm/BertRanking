@@ -21,8 +21,8 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 
 class BertRanking():
-    def __init__(self, file_name, dict_models, processed_data_path):
-        self.file_name = file_name
+    def __init__(self, file_path, dict_models, processed_data_path):
+        self.file_path = file_path
         self.dict_models = dict_models
         self.processed_data_path = processed_data_path
         
@@ -41,7 +41,7 @@ class BertRanking():
         try:
             logging.info('Importando dados da planilha...')
 
-            return pd.read_excel(self.file_name, sheet_name=sheet_name)
+            return pd.read_excel(self.file_path, sheet_name=sheet_name)
         
         except Exception as e:
             logging.error(f'Erro ao importar dados: {str(e)}')
