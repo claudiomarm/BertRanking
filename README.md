@@ -4,7 +4,7 @@
 
 ## Visão Geral
 
-O **BertRanking** compara modelos de linguagem, como **BERTimbau** e **RoBERTa**, para ranquear tópicos de artigos científicos. Utiliza embeddings de cada modelo para medir a relevância dos tópicos com base na similaridade semântica.
+O **BertRanking** compara modelos de linguagem, como **BERTimbau** e **BERT**, para ranquear tópicos de artigos científicos. Utiliza embeddings de cada modelo para medir a relevância dos tópicos com base na similaridade semântica.
 
 ---
 
@@ -19,7 +19,7 @@ O **BertRanking** compara modelos de linguagem, como **BERTimbau** e **RoBERTa**
 ## Funcionalidades
 
 - **Importação e Preprocessamento**: Carrega e limpa dados do Excel.
-- **Tokenização**: Tokeniza o texto com os tokenizadores do BERT e RoBERTa.
+- **Tokenização**: Tokeniza o texto com os tokenizadores do BERT e BERT.
 - **Treinamento**: Treina modelos com MLM (Masked Language Modeling).
 - **Geração de Embeddings**: Gera embeddings de textos e tópicos.
 - **Ranqueamento de Tópicos**: Ranqueia tópicos com base na similaridade de cosseno.
@@ -65,7 +65,7 @@ BertRanking/
 ├───models
 │   ├───BERTimbau
 │   │   └───results
-│   └───RoBERTa
+│   └───BERT
 │       └───results
 ├───notebooks
 ├───src
@@ -78,7 +78,7 @@ BertRanking/
 │       └───static
 └───tokenizers
     ├───BERTimbau
-    └───RoBERTa
+    └───BERT
 ```
 
 ---
@@ -109,4 +109,4 @@ BertRanking/
 
 --- 
 
-Este README apresenta o projeto **BertRanking**, que ranqueia tópicos de artigos científicos usando os modelos **BERTimbau** e **RoBERTa**.
+Este README apresenta o projeto **BertRanking**, que ranqueia tópicos de artigos científicos usando os modelos **BERTimbau** e **BERT**.
