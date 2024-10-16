@@ -380,8 +380,6 @@ class BertRanking():
                 data = self.import_data()
                 logging.info(f'Dados carregados com sucesso.')
 
-                os.makedirs(self.processed_data_path, exist_ok=True)
-                
                 processed_data = self.prepare_data(data)
                 dataset = Dataset.from_pandas(processed_data)
 
@@ -404,8 +402,6 @@ class BertRanking():
                     os.makedirs(model_path, exist_ok=True)
                     os.makedirs(tokenizer_path, exist_ok=True)
                     os.makedirs(results_path, exist_ok=True)
-                    os.makedirs(tokenized_test_dataset_model_path, exist_ok=True)
-                    os.makedirs(models_similarities_model_path, exist_ok=True)
                     
                     tokenizer, bert_model = (
                         BertTokenizer.from_pretrained(model), BertForMaskedLM.from_pretrained(model)
@@ -505,17 +501,17 @@ if __name__ == '__main__':
     results_path = os.path.join(model_path, 'results')
 
     dict_models = {
-        'BERT': {
-            'model': 'bert-base-multilingual-cased',
-            'model_path': os.path.join(model_path, 'BERT'),
-            'tokenizer_path': os.path.join(tokenizer_path, 'BERT'),
-            'results_path': os.path.join(results_path, 'BERT'),
-        },
         'BERTimbau': {
             'model': 'neuralmind/bert-base-portuguese-cased',
             'model_path': os.path.join(model_path, 'BERTimbau'),
             'tokenizer_path': os.path.join(tokenizer_path, 'BERTimbau'),
             'results_path': os.path.join(results_path, 'BERTimbau'),
+        },
+        'BERT': {
+            'model': 'bert-base-multilingual-cased',
+            'model_path': os.path.join(model_path, 'BERT'),
+            'tokenizer_path': os.path.join(tokenizer_path, 'BERT'),
+            'results_path': os.path.join(results_path, 'BERT'),
         }
     }
 
