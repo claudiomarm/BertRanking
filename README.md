@@ -23,7 +23,7 @@ O **BertRanking** compara modelos de linguagem, como **BERTimbau** e **RoBERTa**
 - **Treinamento**: Treina modelos com MLM (Masked Language Modeling).
 - **Geração de Embeddings**: Gera embeddings de textos e tópicos.
 - **Ranqueamento de Tópicos**: Ranqueia tópicos com base na similaridade de cosseno.
-- **Avaliação**: Compara modelos com precisão, recall, NDCG e similaridade semântica.
+- **Avaliação**: Compara modelos por similaridade semântica.
 
 ---
 
@@ -43,7 +43,7 @@ poetry install
 1. **Configurar Caminhos**: Definir os caminhos de dados, modelos e saídas.
 2. **Treinar Modelos**: Caso não estejam treinados, os modelos serão treinados.
 3. **Gerar Embeddings**: Embeddings dos textos e tópicos serão gerados.
-4. **Ranquear Tópicos**: Tópicos serão ranqueados pela similaridade.
+4. **Ranquear Tópicos**: Tópicos serão ranqueados pela similaridade de cosseno.
 5. **Rodar o Projeto**:
 
 ```bash
