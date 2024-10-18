@@ -4,7 +4,7 @@
 
 ## Visão Geral
 
-O **BertRanking** é um sistema projetado para comparar modelos de linguagem como **BERTimbau** e **BERT** utilizando embeddings gerados a partir dos textos e tópicos de artigos científicos. O sistema permite o ranqueamento de artigos com base na similaridade semântica entre um artigo de consulta e os artigos da base. Além disso, a solução oferece a flexibilidade de escolher qual coluna dos dados deve ser retornada no ranqueamento, como título, número de processo, entre outros.
+O **BertRanking** é um sistema projetado para comparar modelos de linguagem como **BERTimbau** e **BERT** utilizando embeddings gerados a partir dos textos e tópicos de artigos científicos. O sistema permite o ranqueamento de artigos com base na similaridade semântica entre um artigo de consulta e os artigos da base.
 
 ---
 
