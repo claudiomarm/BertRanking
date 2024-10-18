@@ -7,13 +7,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 from transformers import BertTokenizer, BertForMaskedLM, DataCollatorForLanguageModeling, Trainer, TrainingArguments, BertModel
 import torch
 from datasets import Dataset
-import matplotlib.pyplot as plt
-import seaborn as sns
 import time
 import re
 import logging
 import logging.config
-import json
+from functools import reduce
+import locale
 
 # Definicao da raiz do projeto
 PROJECT_ROOT = 'G:/Csouza/nlp/topic_modeling'
@@ -93,11 +92,11 @@ class BertRanking():
         except Exception as e:
             logging.error(f'Erro ao preparar dados: {str(e)}')
 
-    def tokenize_function(self, dataset, tokenizer):
+    def tokenize_function(self, dataset, tokenizer, col_text='cleaned_text'):
         try:
             logging.info('Tokenizando textos...')
             
-            return tokenizer(dataset['cleaned_text'], padding="max_length", truncation=True, max_length=512)
+            return tokenizer(dataset[col_text], padding="max_length", truncation=True, max_length=512)
         
         except Exception as e:
             logging.error(f'Erro na tokenização: {str(e)}')
@@ -175,13 +174,12 @@ class BertRanking():
                 inputs = tokenizer(batch_texts, return_tensors="pt", truncation=True, padding="max_length", max_length=max_length).to(bert_model.device)
 
                 with torch.no_grad():
-                    outputs = bert_model(**inputs, output_hidden_states=True)  # Habilitar a saída dos hidden_states
+                    outputs = bert_model(**inputs, output_hidden_states=True)
 
-                # Obtenha a última camada oculta dos hidden_states
                 hidden_states = outputs.hidden_states
-                last_hidden_state = hidden_states[-1]  # A última camada da saída oculta
+                last_hidden_state = hidden_states[-1]
 
-                batch_embeddings = last_hidden_state.mean(dim=1).cpu().numpy()  # Calcular a média ao longo das tokens
+                batch_embeddings = last_hidden_state.mean(dim=1).cpu().numpy()
                 all_embeddings.append(batch_embeddings)
 
             all_embeddings = np.vstack(all_embeddings)
@@ -198,19 +196,72 @@ class BertRanking():
             texts = dataset[text_col]
             dataset[f'text_embedding_{model_name}'] = self.get_embeddings(texts=texts, tokenizer=tokenizer, bert_model=bert_model, batch_size=batch_size)
             
-            all_topics = dataset[topic_col]
-            all_topics_embeddings = []
-            for subjects in all_topics:
-                subjects_embeddings = self.get_embeddings(texts=subjects, tokenizer=tokenizer, bert_model=bert_model, batch_size=batch_size)
-                all_topics_embeddings.append(subjects_embeddings)
-            
-            dataset[f'topics_embeddings_{model_name}'] = all_topics_embeddings
+            if topic_col:
+                all_topics = dataset[topic_col]
+                all_topics_embeddings = []
+                for subjects in all_topics:
+                    subjects_embeddings = self.get_embeddings(texts=subjects, tokenizer=tokenizer, bert_model=bert_model, batch_size=batch_size)
+                    all_topics_embeddings.append(subjects_embeddings)
+                
+                dataset[f'topics_embeddings_{model_name}'] = all_topics_embeddings
 
             return dataset
         
         except Exception as e:
             logging.error(f'Erro ao gerar embeddings do dataset: {str(e)}')
     
+    def get_query_embedding(self, query_text, tokenizer, bert_model):
+        query_text = self.clean_text(query_text)
+        query_embedding = self.get_embeddings([query_text], tokenizer, bert_model)
+
+        return query_embedding
+    
+    def rank_similarity(self, query_embedding, texts_embeddings):
+        similarities = cosine_similarity(query_embedding, texts_embeddings)
+
+        return np.argsort(similarities[0])[::-1], similarities[0]
+    
+    def rank_texts(self, query_text, tokenizer=None, bert_model=None, data=None, text_embedding_col='text_embedding_BERT', model_name='BERT', top_n=5, return_col='titulo'):
+        """
+        Ranqueia os artigos com base na similaridade semântica do artigo de consulta com os artigos da base.
+        Utiliza o DataFrame contendo os embeddings dos artigos. Controla o número máximo de artigos no ranking com `top_n`
+        e permite selecionar a coluna a ser retornada (ex: título, número do processo).
+        
+        Args:
+        query_text (str): Texto do artigo de consulta.
+        tokenizer: Tokenizador do modelo.
+        bert_model: Modelo BERT ou BERTimbau.
+        data (pd.DataFrame): DataFrame contendo os textos e embeddings dos artigos.
+        top_n (int): Número máximo de artigos a serem exibidos no ranking.
+        return_col (str): Nome da coluna que será retornada no ranking (ex: 'titulo', 'n_processo').
+        
+        Returns:
+        ranked_values (list): Lista de valores da coluna selecionada ranqueados.
+        ranked_similarities (list): Lista de similaridades dos artigos ranqueados.
+        """
+        if data is None:
+            data = self.embeddings_test_dataset
+        
+        if tokenizer is None or bert_model is None:
+            tokenizer, bert_model = self.model_dict[model_name]['tokenizer'], self.model_dict[model_name]['model']
+
+        query_embedding = self.get_query_embedding(query_text, tokenizer, bert_model)
+        
+        texts_embeddings = np.vstack(data[text_embedding_col].values)
+        
+        ranked_indices, similarities = self.rank_similarity(query_embedding, texts_embeddings)
+        
+        ranked_indices = ranked_indices[:top_n]
+        ranked_similarities = similarities[ranked_indices]
+        
+        ranked_values = data.iloc[ranked_indices][return_col].values
+        
+        for i, (value, sim) in enumerate(zip(ranked_values, ranked_similarities)):
+            print(f"Rank {i+1}: Similaridade {sim:.4f}")
+            print(f"Valor da coluna '{return_col}': {value}\n")
+        
+        return ranked_values, ranked_similarities
+
     def save_dataset(self, dataset, path):
         try:
             logging.info('Salvando dataset...')
@@ -222,148 +273,21 @@ class BertRanking():
         except Exception as e:
             logging.error(f'Erro ao salvar dataset: {str(e)}')
 
-    def load_dataset(self, path):
+    def load_dataset(self, path, load_as='datasets'):
         try:
             logging.info('Carregando dataset salvo...')
 
             df = pd.read_parquet(path)
 
-            return Dataset.from_pandas(df)
+            if load_as == 'pandas':
+                return df
+            elif load_as == 'datasets':
+                return Dataset.from_pandas(df)
+            else:
+                raise ValueError("O argumento 'load_as' deve ser 'pandas' ou 'datasets'.")
         
         except Exception as e:
             logging.error(f'Erro ao carregar dataset: {str(e)}')
-    
-    def rank_topics_by_relevance(self, text_embedding, topics_embeddings, topics):
-        try:
-            logging.info('Ranqueando tópicos por relevância...')
-
-            text_embedding = np.array(text_embedding)
-            topics_embeddings = [np.array(topic_emb) for topic_emb in topics_embeddings]
-            
-            # Calcular similaridades de cosseno entre o embedding do texto e cada embedding dos tópicos
-            similarities = [cosine_similarity(text_embedding.reshape(1, -1), topic_emb.reshape(1, -1))[0, 0] for topic_emb in topics_embeddings]
-            
-            # Classificar os tópicos de acordo com a similaridade, do maior para o menor
-            ranked_topics = sorted(zip(topics, similarities), key=lambda x: x[1], reverse=True)
-            
-            # Retornar apenas os tópicos ranqueados
-            return [topic for topic, _ in ranked_topics]
-        
-        except Exception as e:
-            logging.error(f'Erro ao ranquear tópicos: {str(e)}')
-
-    def rank_topics(self, dataset, text_embedding_col='text_embedding', topics_embeddings_col='topics_embeddings', topics_col='topics'):
-        try:
-            logging.info('Aplicando ranqueamento de tópicos ao dataset...')
-            
-            dataset['ranked_topics'] = self.rank_topics_by_relevance(dataset[text_embedding_col], dataset[topics_embeddings_col], dataset[topics_col])
-            
-            return dataset
-        
-        except Exception as e:
-            logging.error(f'Erro ao aplicar ranqueamento de tópicos: {str(e)}')
-    
-    def evaluate_ranking(self, test_dataset, k=3):
-        try:
-            logging.info('Avaliando precisão, recall e NDCG no top-k...')
-
-            def precision_at_k(true_labels, predicted_labels, k):
-                correct_predictions = 0
-                
-                for true, predicted in zip(true_labels, predicted_labels):
-                    predicted_top_k = predicted[:k]
-                    if any(subject in predicted_top_k for subject in true):
-                        correct_predictions += 1
-                
-                return correct_predictions / len(true_labels)
-
-            def recall_at_k(true_labels, predicted_labels, k):
-                correct_predictions = 0
-                
-                for true, predicted in zip(true_labels, predicted_labels):
-                    predicted_top_k = predicted[:k]
-                    correct_in_top_k = len(set(true) & set(predicted_top_k))
-                    total_relevant = len(true)
-                    
-                    if total_relevant > 0:
-                        correct_predictions += correct_in_top_k / total_relevant
-                
-                return correct_predictions / len(true_labels)
-
-            def dcg_at_k(relevances, k):
-                relevances = np.array(relevances)[:k]
-                return np.sum((2**relevances - 1) / np.log2(np.arange(2, len(relevances) + 2)))
-
-            def ndcg_at_k(true_labels, predicted_labels, k):
-                total_ndcg = 0.0
-                
-                for true, predicted in zip(true_labels, predicted_labels):
-                    # Atribuir relevância: 1 para tópicos verdadeiros, 0 para os outros
-                    relevances = [1 if topic in true else 0 for topic in predicted[:k]]
-                    dcg = dcg_at_k(relevances, k)
-                    ideal_relevances = sorted(relevances, reverse=True)
-                    idcg = dcg_at_k(ideal_relevances, k)
-                    
-                    if idcg > 0:
-                        total_ndcg += dcg / idcg
-                
-                return total_ndcg / len(true_labels)
-                    
-            true_labels, predicted_labels = (test_dataset['topics'], test_dataset['ranked_topics'])
-
-            precision, recall, ndcg = (
-                precision_at_k(true_labels, predicted_labels, k), recall_at_k(true_labels, predicted_labels, k), ndcg_at_k(true_labels, predicted_labels, k)
-            )
-
-            return precision, recall, ndcg
-        
-        except Exception as e:
-            logging.error(f'Erro na avaliação de ranqueamento: {str(e)}')
-    
-    def calculate_mean_cosine_similarity(self, text_embeddings, topics_embeddings):
-        try:
-            logging.info('Calculando similaridade média de cosseno...')
-
-            all_similarities = []
-            for text_emb, topic_embs in zip(text_embeddings, topics_embeddings):
-                similarities = [cosine_similarity(text_emb.reshape(1, -1), topic_emb.reshape(1, -1))[0, 0]
-                                for topic_emb in topic_embs]
-                all_similarities.append(np.mean(similarities))
-
-            return np.array(all_similarities)
-        
-        except Exception as e:
-            logging.error(f'Erro ao calcular similaridade de cosseno: {str(e)}')
-    
-    def compare_models_by_semantic_similarity(self, m1_similarities, m1_name, m2_similarities, m2_name):
-        mean_m1_similarity = np.mean(m1_similarities)
-        mean_m2_similarity = np.mean(m2_similarities)
-
-        std_m1_similarity = np.std(m1_similarities)
-        std_m2_similarity = np.std(m2_similarities)
-
-        logging.info(f'Média Similaridade ({m1_name}): {mean_m1_similarity:.2f}')
-        logging.info(f'Média Similaridade ({m2_name}): {mean_m2_similarity:.2f}')
-        logging.info(f'Desvio Padrão Similaridade ({m1_name}): {std_m1_similarity:.2f}')
-        logging.info(f'Desvio Padrão Similaridade ({m2_name}): {std_m2_similarity:.2f}')
-        
-        # Plotando a Distribuição das Similaridades
-        plt.figure(figsize=(10, 6))
-        sns.histplot(m1_similarities, color='blue', label='BERTimbau', kde=True, bins=20)
-        sns.histplot(m2_similarities, color='green', label='RoBERTa', kde=True, bins=20)
-        plt.title('Distribuição das Similaridades de Cosseno: BERTimbau vs RoBERTa')
-        plt.xlabel('Similaridade de Cosseno')
-        plt.ylabel('Frequência')
-        plt.legend()
-        plt.show()
-
-        # Boxplot para Comparação de Similaridades
-        plt.figure(figsize=(8, 6))
-        sns.boxplot(data=[m1_similarities, m2_similarities], palette='Set2')
-        plt.xticks([0, 1], ['BERTimbau', 'RoBERTa'])
-        plt.title('Comparação da Similaridade de Cosseno: BERTimbau vs RoBERTa')
-        plt.ylabel('Similaridade de Cosseno')
-        plt.show()
     
     def execute(self, test_size=0.2):
         try:
@@ -371,11 +295,13 @@ class BertRanking():
             logging.info('Iniciando o pipeline de execução...')
             os.makedirs(self.processed_data_path, exist_ok=True)
 
-            tokenized_test_dataset_path = os.path.join(self.processed_data_path, 'tokenized_test_dataset.parquet')
-            models_similarities_path = os.path.join(self.processed_data_path, 'bert_similarities.json')
+            data_list = []
+            for model_name in self.dict_models.keys():
+                data_list.append(os.path.join(self.processed_data_path, f'tokenized_test_dataset_{model_name}.parquet'))
 
-            models_similarities = {}
-            if not os.path.exists(models_similarities_path):
+            check = [os.path.isfile(data) for data in data_list]
+
+            if not all(check):
                 s1 = time.time()
                 data = self.import_data()
                 logging.info(f'Dados carregados com sucesso.')
@@ -393,8 +319,7 @@ class BertRanking():
                     s3 = time.time()
                     logging.info(f'Iniciando tokenização para {model_name}...')
                     tokenized_test_dataset_model_path = os.path.join(self.processed_data_path, f'tokenized_test_dataset_{model_name}.parquet')
-                    models_similarities_model_path = os.path.join(self.processed_data_path, f'bert_similarities_{model_name}.json')
-
+                    
                     model, model_path, tokenizer_path, results_path = (
                         opt['model'], opt['model_path'], opt['tokenizer_path'], opt['results_path']
                     )
@@ -439,7 +364,7 @@ class BertRanking():
                         metrics = self.evaluate_model(trainer, tokenized_test_dataset)
                         logging.info(f'Metrics for {model_name}: {metrics}')
 
-                    tokenizer, bert_model = (
+                    self.tokenizer, self.bert_model = (
                         BertTokenizer.from_pretrained(tokenizer_path), BertModel.from_pretrained(model_path)
                     )
 
@@ -450,40 +375,42 @@ class BertRanking():
                     
                     BATCH_SIZE = 8
                     tokenized_test_dataset = tokenized_test_dataset.map(
-                        self.generate_embeddings, batched=True, batch_size=BATCH_SIZE, fn_kwargs={'model_name': model_name, 'tokenizer': tokenizer, 'bert_model': bert_model})
-                    
-                    tokenized_test_dataset = tokenized_test_dataset.map(self.rank_topics, batched=False, fn_kwargs={'text_embedding_col': f'text_embedding_{model_name}', 'topics_embeddings_col': f'topics_embeddings_{model_name}'})
+                        self.generate_embeddings, batched=True, batch_size=BATCH_SIZE, fn_kwargs={'model_name': model_name, 'tokenizer': self.tokenizer, 'bert_model': self.bert_model})
                     
                     end4 = time.time() - s4
                     logging.info(f'Geração de embeddings e ranqueamento de tópicos para {model_name} concluídos em {end4:.2f} segundos.')
 
-                    s5 = time.time()
-                    bert_similarities = self.calculate_mean_cosine_similarity(
-                        tokenized_test_dataset[f'text_embedding_{model_name}'], tokenized_test_dataset[f'topics_embeddings_{model_name}']
-                    )
-
-                    models_similarities[model_name] = bert_similarities
-                    end5 = time.time() - s5
-                    logging.info(f'Cálculo da similaridade semântica para o modelo {model_name} concluída em {end5:.2f} segundos.')
-
                     self.save_dataset(tokenized_test_dataset, tokenized_test_dataset_model_path)
-
-                    with open(models_similarities_model_path, 'w') as f:
-                        json.dump(models_similarities, f)
-
-                self.save_dataset(tokenized_test_dataset, tokenized_test_dataset_path)
-
-                with open(models_similarities_path, 'w') as f:
-                    json.dump(models_similarities, f)
             
-            models_similarities = json.load(open(models_similarities_path, 'r'))
+            data_dict, self.model_dict, model_name_list = {}, {}, []
 
-            model_names = list(models_similarities.keys())
+            rename_cols = ['input_ids', 'token_type_ids', 'attention_mask', 'ranked_topics']
+            for model_name, opt in self.dict_models.items():
+                data = self.load_dataset(os.path.join(self.processed_data_path, f'tokenized_test_dataset_{model_name}.parquet'), load_as='pandas')
+                
+                if 'topics' in data.columns:
+                    data['topics'] = data['topics'].apply(lambda x: tuple(x))
+                data_dict[model_name] = data.rename(columns={col: f'{col}_{model_name}' for col in rename_cols})
+                
+                model_name_list.append(model_name)
 
-            m1_name, m2_name = model_names[0], model_names[1]
-            m1_similarities, m2_similarities = models_similarities[m1_name], models_similarities[m2_name]
+                model_path, tokenizer_path = (opt['model_path'], opt['tokenizer_path'])
+                if model_name not in self.model_dict:
+                    self.model_dict[model_name] = {}
+                    
+                self.model_dict[model_name]['model'] = BertModel.from_pretrained(model_path)
+                self.model_dict[model_name]['tokenizer'] = BertTokenizer.from_pretrained(tokenizer_path)
 
-            self.compare_models_by_semantic_similarity(m1_similarities=m1_similarities, m1_name=m1_name, m2_similarities=m2_similarities, m2_name=m2_name)
+            cols_in_common = list(
+                set.intersection(
+                    *[set(data_dict[model_name].columns) for model_name in model_name_list]
+                )
+            )
+
+            self.embeddings_test_dataset = reduce(
+                lambda left, right: left.merge(right, on=cols_in_common, how='inner'), 
+                [data_dict[model_name] for model_name in model_name_list]
+            )
 
             end = time.time() - start
             logging.info(f'Execução completa em {end:.2f} segundos.')
@@ -491,7 +418,6 @@ class BertRanking():
         except Exception as e:
             logging.error(f'{str(e)}')
 
-            
 if __name__ == '__main__':
     file_path = os.path.join(PROJECT_ROOT, 'data', 'internal', 'fapesp_projects', 'all_process.xlsx')
     processed_data_path = os.path.join(PROJECT_ROOT, 'data', 'processed', 'fapesp_projects')
@@ -521,7 +447,7 @@ if __name__ == '__main__':
     console_handler.setLevel(logging.DEBUG)
     logging.getLogger().addHandler(console_handler)
 
-    os.environ['NLS_LANG'] = 'AMERICAN_AMERICA.WE8ISO8859P1'
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
     
     BertRanking = BertRanking(file_path=file_path, dict_models=dict_models, processed_data_path=processed_data_path)
     BertRanking.execute()
