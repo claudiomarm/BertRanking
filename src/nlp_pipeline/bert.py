@@ -13,6 +13,8 @@ import logging
 import logging.config
 from functools import reduce
 import locale
+import plotly.graph_objects as go
+import plotly.express as px
 
 # Definicao da raiz do projeto
 PROJECT_ROOT = 'G:/Csouza/nlp/topic_modeling'
@@ -210,6 +212,146 @@ class BertRanking():
         except Exception as e:
             logging.error(f'Erro ao gerar embeddings do dataset: {str(e)}')
     
+    def add_similarity_column(self, data=None, text_embedding_col='text_embedding_BERT', topics_embedding_col='topics_embeddings_BERT', similarity_col='similarity_text_topics_BERT'):
+        try:
+            logging.info(f'Adicionando coluna de similaridade "{similarity_col}"...')
+
+            if data is None:
+                data = self.embeddings_test_dataset
+            
+            def calculate_similarity(text_emb, topics_emb_list):
+                topics_emb = np.vstack(topics_emb_list)  # Garante que os embeddings dos tópicos estão na forma correta
+                similarities = cosine_similarity([text_emb], topics_emb)[0]  # Calcula a similaridade
+                return similarities.mean()  # Retorna a média das similaridades entre o texto e os tópicos
+
+            # Aplica a função para cada linha do DataFrame
+            data[similarity_col] = data.apply(
+                lambda row: calculate_similarity(row[text_embedding_col], row[topics_embedding_col]), axis=1
+            )
+
+            logging.info(f'Coluna "{similarity_col}" adicionada com sucesso.')
+
+            return data
+            
+        except Exception as e:
+            logging.error(f'Erro ao calcular a similaridade: {str(e)}')
+    
+    def plot_scatter_similarity(self, data=None, similarity_col_dict={'BERT': 'similarity_text_topics_BERT', 'BERTimbau': 'similarity_text_topics_BERTimbau'}):
+        try:
+            fig = go.Figure()
+
+            if data == None:
+                data = self.embeddings_test_dataset
+            
+            for model_name, similarity_col in similarity_col_dict.items():
+                # Adiciona pontos de dispersão para o modelo especificado
+                fig.add_trace(go.Scatter(
+                    x=list(range(len(data))),
+                    y=data[similarity_col],
+                    mode='markers',
+                    name=model_name
+                ))
+
+            # Layout do gráfico
+            fig.update_layout(
+                title=f'<b>Dispersão da similaridade semântica entre Textos e Tópicos</b><br>{" vs ".join(similarity_col_dict.keys())}',
+                xaxis_title='Amostras',
+                yaxis_title='Similaridade',
+                showlegend=True
+            )
+
+            fig.show()
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar dispersão: {str(e)}')
+
+    def plot_similarity_distribution(self, data=None, similarity_col_dict={'BERT': 'similarity_text_topics_BERT', 'BERTimbau': 'similarity_text_topics_BERTimbau'}):
+        try:
+            fig = go.Figure()
+
+            if data == None:
+                data = self.embeddings_test_dataset
+
+            for model_name, similarity_col in similarity_col_dict.items():
+                fig.add_trace(go.Histogram(
+                    x=data[similarity_col],
+                    name=model_name,
+                    nbinsx=20,
+                    opacity=0.75
+                ))
+
+            # Atualiza o layout do gráfico
+            fig.update_layout(
+                title=f'<b>Distribuição da similaridade semântica entre Textos e Tópicos</b><br>{" vs ".join(similarity_col_dict.keys())}',
+                xaxis_title='Similaridade Semântica',
+                yaxis_title='Frequência',
+                barmode='overlay',
+                showlegend=True
+            )
+
+            fig.update_traces(opacity=0.6)
+            fig.show()
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar distribuição: {str(e)}')
+    
+    def plot_boxplot_similarity(self, data=None, similarity_col_dict={'BERT': 'similarity_text_topics_BERT', 'BERTimbau': 'similarity_text_topics_BERTimbau'}):
+        try:
+            fig = go.Figure()
+
+            if data == None:
+                data = self.embeddings_test_dataset
+
+            for model_name, similarity_col in similarity_col_dict.items():
+                # Adiciona boxplot para BERT
+                fig.add_trace(go.Box(
+                    y=data[similarity_col],
+                    name=model_name
+                ))
+
+            # Layout do gráfico
+            fig.update_layout(
+                title=f'<b>Boxplot da similaridade semântica entre Textos e Tópicos</b><br>{" vs ".join(similarity_col_dict.keys())}',
+                yaxis_title='Similaridade'
+            )
+
+            fig.show()
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar boxplot: {str(e)}')
+
+    
+    def plot_statistical_summary(self, data=None, similarity_col_dict={'BERT': 'similarity_text_topics_BERT', 'BERTimbau': 'similarity_text_topics_BERTimbau'}):
+        try:
+            summaries = {}
+
+            if data == None:
+                data = self.embeddings_test_dataset
+
+            for model_name, similarity_col in similarity_col_dict.items():
+                summaries[model_name] = data[similarity_col].describe()
+
+            metrics = summaries[next(iter(summaries))].index
+            values = [summaries[model_name].values for model_name in similarity_col_dict.keys()]
+
+            fig = go.Figure(data=[go.Table(
+                header=dict(values=['Métrica'] + list(similarity_col_dict.keys()),
+                            fill_color='paleturquoise',
+                            align='left'),
+                cells=dict(values=[metrics] + values,
+                        fill_color='lavender',
+                        align='left'))
+            ])
+
+            fig.update_layout(
+                title=f'<b>Resumo estatístico da similaridade semântica entre Textos e Tópicos</b><br>{" vs ".join(similarity_col_dict.keys())}',
+            )
+
+            fig.show()
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar resumo estatístico: {str(e)}')
+
     def get_query_embedding(self, query_text, tokenizer, bert_model):
         query_text = self.clean_text(query_text)
         query_embedding = self.get_embeddings([query_text], tokenizer, bert_model)
@@ -222,45 +364,33 @@ class BertRanking():
         return np.argsort(similarities[0])[::-1], similarities[0]
     
     def rank_texts(self, query_text, tokenizer=None, bert_model=None, data=None, text_embedding_col='text_embedding_BERT', model_name='BERT', top_n=5, return_col='titulo'):
-        """
-        Ranqueia os artigos com base na similaridade semântica do artigo de consulta com os artigos da base.
-        Utiliza o DataFrame contendo os embeddings dos artigos. Controla o número máximo de artigos no ranking com `top_n`
-        e permite selecionar a coluna a ser retornada (ex: título, número do processo).
-        
-        Args:
-        query_text (str): Texto do artigo de consulta.
-        tokenizer: Tokenizador do modelo.
-        bert_model: Modelo BERT ou BERTimbau.
-        data (pd.DataFrame): DataFrame contendo os textos e embeddings dos artigos.
-        top_n (int): Número máximo de artigos a serem exibidos no ranking.
-        return_col (str): Nome da coluna que será retornada no ranking (ex: 'titulo', 'n_processo').
-        
-        Returns:
-        ranked_values (list): Lista de valores da coluna selecionada ranqueados.
-        ranked_similarities (list): Lista de similaridades dos artigos ranqueados.
-        """
-        if data is None:
-            data = self.embeddings_test_dataset
-        
-        if tokenizer is None or bert_model is None:
-            tokenizer, bert_model = self.model_dict[model_name]['tokenizer'], self.model_dict[model_name]['model']
+        try:
+            logging.info(f'Ranqueando textos para o modelo {model_name}...')
+            if data is None:
+                data = self.embeddings_test_dataset
+            
+            if tokenizer is None or bert_model is None:
+                tokenizer, bert_model = self.model_dict[model_name]['tokenizer'], self.model_dict[model_name]['model']
 
-        query_embedding = self.get_query_embedding(query_text, tokenizer, bert_model)
+            query_embedding = self.get_query_embedding(query_text, tokenizer, bert_model)
+            
+            texts_embeddings = np.vstack(data[text_embedding_col].values)
+            
+            ranked_indices, similarities = self.rank_similarity(query_embedding, texts_embeddings)
+            
+            ranked_indices = ranked_indices[:top_n]
+            ranked_similarities = similarities[ranked_indices]
+            
+            ranked_values = data.iloc[ranked_indices][return_col].values
+            
+            for i, (value, sim) in enumerate(zip(ranked_values, ranked_similarities)):
+                print(f"Rank {i+1}: Similaridade {sim:.4f}")
+                print(f"Valor da coluna '{return_col}': {value}\n")
+            
+            return ranked_values, ranked_similarities
         
-        texts_embeddings = np.vstack(data[text_embedding_col].values)
-        
-        ranked_indices, similarities = self.rank_similarity(query_embedding, texts_embeddings)
-        
-        ranked_indices = ranked_indices[:top_n]
-        ranked_similarities = similarities[ranked_indices]
-        
-        ranked_values = data.iloc[ranked_indices][return_col].values
-        
-        for i, (value, sim) in enumerate(zip(ranked_values, ranked_similarities)):
-            print(f"Rank {i+1}: Similaridade {sim:.4f}")
-            print(f"Valor da coluna '{return_col}': {value}\n")
-        
-        return ranked_values, ranked_similarities
+        except Exception as e:
+            logging.error(f'Erro ao ranquear textos: {str(e)}')
 
     def save_dataset(self, dataset, path):
         try:
@@ -382,7 +512,7 @@ class BertRanking():
 
                     self.save_dataset(tokenized_test_dataset, tokenized_test_dataset_model_path)
             
-            data_dict, self.model_dict, model_name_list = {}, {}, []
+            data_dict, self.model_dict, similarity_col_dict, model_name_list = {}, {}, {}, []
 
             rename_cols = ['input_ids', 'token_type_ids', 'attention_mask', 'ranked_topics']
             for model_name, opt in self.dict_models.items():
@@ -390,7 +520,12 @@ class BertRanking():
                 
                 if 'topics' in data.columns:
                     data['topics'] = data['topics'].apply(lambda x: tuple(x))
+
+                data = self.add_similarity_column(data=data, text_embedding_col=f'text_embedding_{model_name}', topics_embedding_col=f'topics_embeddings_{model_name}', similarity_col=f'similarity_text_topics_{model_name}')
+                
                 data_dict[model_name] = data.rename(columns={col: f'{col}_{model_name}' for col in rename_cols})
+
+                similarity_col_dict[model_name] = f'similarity_text_topics_{model_name}'
                 
                 model_name_list.append(model_name)
 
@@ -411,6 +546,11 @@ class BertRanking():
                 lambda left, right: left.merge(right, on=cols_in_common, how='inner'), 
                 [data_dict[model_name] for model_name in model_name_list]
             )
+
+            self.plot_scatter_similarity(similarity_col_dict=similarity_col_dict)
+            self.plot_similarity_distribution(similarity_col_dict=similarity_col_dict)
+            self.plot_boxplot_similarity(similarity_col_dict=similarity_col_dict)
+            self.plot_statistical_summary(similarity_col_dict=similarity_col_dict)
 
             end = time.time() - start
             logging.info(f'Execução completa em {end:.2f} segundos.')
