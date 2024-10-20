@@ -319,7 +319,6 @@ class BertRanking():
 
         except Exception as e:
             logging.error(f'Erro ao plotar boxplot: {str(e)}')
-
     
     def plot_statistical_summary(self, data=None, similarity_col_dict={'BERT': 'similarity_text_topics_BERT', 'BERTimbau': 'similarity_text_topics_BERTimbau'}):
         try:
@@ -328,19 +327,42 @@ class BertRanking():
             if data == None:
                 data = self.embeddings_test_dataset
 
+            metric_rename = {
+                'count': 'Contagem',
+                'mean': 'Média',
+                'std': 'Desvio Padrão',
+                'min': 'Mínimo',
+                '25%': '1º Quartil (25%)',
+                '50%': 'Mediana (50%)',
+                '75%': '3º Quartil (75%)',
+                'max': 'Máximo'
+            }
+
             for model_name, similarity_col in similarity_col_dict.items():
-                summaries[model_name] = data[similarity_col].describe()
+                summary = self.embeddings_test_dataset[similarity_col].describe()
+            
+                summary['count'] = int(summary['count'])
+
+                for metric in summary.index:
+                    if metric != 'count':
+                        summary[metric] = f'{round(summary[metric], 4):.4f}'
+                
+                summaries[model_name] = summary
+            
+                summary.rename(index=metric_rename, inplace=True)
 
             metrics = summaries[next(iter(summaries))].index
             values = [summaries[model_name].values for model_name in similarity_col_dict.keys()]
 
             fig = go.Figure(data=[go.Table(
-                header=dict(values=['Métrica'] + list(similarity_col_dict.keys()),
+                header=dict(values=['Métrica'] + list(similarity_col_dict.keys()),  # Nome das colunas
                             fill_color='paleturquoise',
                             align='left'),
-                cells=dict(values=[metrics] + values,
-                        fill_color='lavender',
-                        align='left'))
+                cells=dict(
+                    values=[metrics] + values,
+                    fill_color='lavender',
+                    align='left'
+                ))
             ])
 
             fig.update_layout(
