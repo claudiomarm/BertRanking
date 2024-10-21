@@ -4,6 +4,7 @@ import sys
 import pandas as pd
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import KMeans
 from transformers import BertTokenizer, BertForMaskedLM, DataCollatorForLanguageModeling, Trainer, TrainingArguments, BertModel
 import torch
 from datasets import Dataset
@@ -14,7 +15,10 @@ import logging.config
 from functools import reduce
 import locale
 import plotly.graph_objects as go
+import plotly.express as px
 import warnings
+import random
+from sklearn.decomposition import PCA
 
 warnings.filterwarnings('ignore')
 
@@ -23,7 +27,7 @@ PROJECT_ROOT = 'G:/Csouza/nlp/topic_modeling'
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 
-class BertRanking():
+class BertRankingCopy():
     def __init__(self, file_path, dict_models, processed_data_path):
         self.file_path = file_path
         self.dict_models = dict_models
@@ -254,7 +258,7 @@ class BertRanking():
 
             # Layout do gráfico
             fig.update_layout(
-                title=f'<b>Dispersão da similaridade semântica entre Textos e Palavras-Chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
+                title=f'<b>Dispersão da similaridade semântica entre textos e palavras-chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
                 xaxis_title='Amostras',
                 yaxis_title='Similaridade',
                 showlegend=True
@@ -282,7 +286,7 @@ class BertRanking():
 
             # Atualiza o layout do gráfico
             fig.update_layout(
-                title=f'<b>Distribuição da similaridade semântica entre Textos e Palavras-Chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
+                title=f'<b>Distribuição da similaridade semântica entre textos e palavras-chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
                 xaxis_title='Similaridade Semântica',
                 yaxis_title='Frequência',
                 barmode='overlay',
@@ -311,7 +315,7 @@ class BertRanking():
 
             # Layout do gráfico
             fig.update_layout(
-                title=f'<b>Boxplot da similaridade semântica entre Textos e Palavras-Chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
+                title=f'<b>Boxplot da similaridade semântica entre textos e palavras-chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
                 yaxis_title='Similaridade'
             )
 
@@ -366,7 +370,7 @@ class BertRanking():
             ])
 
             fig.update_layout(
-                title=f'<b>Resumo estatístico da similaridade semântica entre Textos e Palavras-Chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
+                title=f'<b>Resumo estatístico da similaridade semântica entre textos e palavras-chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
             )
 
             fig.show()
@@ -385,7 +389,7 @@ class BertRanking():
 
         return np.argsort(similarities[0])[::-1], similarities[0]
     
-    def rank_texts(self, query_text, tokenizer=None, bert_model=None, data=None, text_embedding_col='text_embedding_BERT', model_name='BERT', top_n=5, return_col='titulo'):
+    def rank_texts(self, query_text, tokenizer=None, bert_model=None, data=None, text_embedding_col='text_embedding_BERT', model_name='BERT', top_n=5, return_col='titulo', show_info=True):
         try:
             logging.info(f'Ranqueando textos para o modelo {model_name}...')
             if data is None:
@@ -405,9 +409,10 @@ class BertRanking():
             
             ranked_values = data.iloc[ranked_indices][return_col].values
             
-            for i, (value, sim) in enumerate(zip(ranked_values, ranked_similarities)):
-                print(f"Rank {i+1}: Similaridade {sim:.4f}")
-                print(f"Valor da coluna '{return_col}': {value}\n")
+            if show_info:
+                for i, (value, sim) in enumerate(zip(ranked_values, ranked_similarities)):
+                    print(f"Rank {i+1}: Similaridade {sim:.4f}")
+                    print(f"Valor da coluna '{return_col}': {value}\n")
             
             return ranked_values, ranked_similarities
         
@@ -440,7 +445,92 @@ class BertRanking():
         
         except Exception as e:
             logging.error(f'Erro ao carregar dataset: {str(e)}')
-    
+
+    def generate_random_queries(self, data=None, n_queries=30, text_col='cleaned_text'):
+        try:
+            logging.info(f'Gerando {n_queries} queries aleatórias...')
+            if data is None:
+                data = self.embeddings_test_dataset
+
+            random.seed(42)
+            return random.sample(list(data[text_col]), n_queries)
+        except Exception as e:
+            logging.error(f'Erro ao gerar queries aleatórias: {str(e)}')
+
+    def get_embeddings_queries(self, queries, tokenizer=None, bert_model=None, data=None, text_embedding_col='text_embedding_BERT', model_name='BERT', top_n=5, return_col='titulo', show_info=False):
+        try:
+            if data is None:
+                data = self.embeddings_test_dataset
+            
+            if tokenizer is None or bert_model is None:
+                tokenizer, bert_model = self.model_dict[model_name]['tokenizer'], self.model_dict[model_name]['model']
+            
+            top_n_embeddings = {i: [] for i in range(1, top_n+1)}
+            queries_embeddings = []
+
+            for query in queries:
+                query_embedding = self.get_query_embedding(query, tokenizer, bert_model)
+                queries_embeddings.append(query_embedding[0])
+
+                ranked_values, _ = self.rank_texts(query_text=query, tokenizer=tokenizer, bert_model=bert_model, data=data, text_embedding_col=text_embedding_col, model_name=model_name, top_n=top_n, return_col=return_col, show_info=show_info)
+                
+                for i in range(top_n):
+                    embedding = data.loc[data[return_col] == ranked_values[i], text_embedding_col].values[0]
+                    top_n_embeddings[i+1].append(embedding)
+            
+            return top_n_embeddings, queries_embeddings
+        
+        except Exception as e:
+            logging.error(f'Erro ao obter embeddings do top-n: {str(e)}')
+
+    def plot_boxplot_embeddings(self, title, top_n_embeddings, queries_embeddings, top_n=5):
+        try:
+            similarities = {rank: [] for rank in range(1, top_n+1)}
+
+            for rank in range(1, top_n+1):
+                for i, doc_embedding in enumerate(top_n_embeddings[rank]):
+                    query_embedding = queries_embeddings[i]
+                    # Calcula a similaridade de cosseno entre a query e os documentos
+                    similarity = cosine_similarity([doc_embedding], [query_embedding])[0][0]
+                    similarities[rank].append(similarity)
+
+            fig = go.Figure()
+
+            for rank in range(1, top_n+1):
+                fig.add_trace(go.Box(
+                    y=similarities[rank],
+                    name=f'Posição {rank}',
+                    boxmean=True
+                ))
+
+            fig.update_layout(
+                title=title,
+                yaxis_title='Similaridade de Cosseno',
+                xaxis_title='Posição no Ranking'
+            )
+
+            fig.show()
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar Boxplot para o top-n: {str(e)}')
+
+    def visualize_boxplot(self, tokenizer=None, bert_model=None, data=None, text_embedding_col='text_embedding_BERT', model_name='BERT', top_n=5, n_queries=30, text_col='cleaned_text', return_col='titulo'):
+        try:
+            if data is None:
+                data = self.embeddings_test_dataset
+            
+            if tokenizer is None or bert_model is None:
+                tokenizer, bert_model = self.model_dict[model_name]['tokenizer'], self.model_dict[model_name]['model']
+            
+            queries = self.generate_random_queries(data=data, n_queries=n_queries, text_col=text_col)
+            top_n_embeddings, queries_embeddings = self.get_embeddings_queries(queries=queries, tokenizer=tokenizer, bert_model=bert_model, data=data, text_embedding_col=text_embedding_col, model_name=model_name, top_n=top_n, return_col=return_col)
+            
+            title = f'<b>Distribuição das similaridades semânticas dos documentos ranqueados em relação às queries</b><br>{model_name} - top {top_n} posições, número de queries: {n_queries}'
+            self.plot_boxplot_embeddings(title=title, top_n_embeddings=top_n_embeddings, queries_embeddings=queries_embeddings, top_n=top_n)
+            
+        except Exception as e:
+            logging.error(f'Erro ao visualizar Boxplot e Dispersão para o top-n: {str(e)}')
+
     def execute(self, test_size=0.2):
         try:
             start = time.time()
@@ -609,5 +699,5 @@ if __name__ == '__main__':
 
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
     
-    BertRanking = BertRanking(file_path=file_path, dict_models=dict_models, processed_data_path=processed_data_path)
+    BertRanking = BertRankingCopy(file_path=file_path, dict_models=dict_models, processed_data_path=processed_data_path)
     BertRanking.execute()

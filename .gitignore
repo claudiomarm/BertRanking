@@ -20,3 +20,4 @@
 *.bin
 *.json
 *.ipynb
+test_bert.py
