@@ -4,7 +4,6 @@ import sys
 import pandas as pd
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.cluster import KMeans
 from transformers import BertTokenizer, BertForMaskedLM, DataCollatorForLanguageModeling, Trainer, TrainingArguments, BertModel
 import torch
 from datasets import Dataset
@@ -15,10 +14,9 @@ import logging.config
 from functools import reduce
 import locale
 import plotly.graph_objects as go
-import plotly.express as px
 import warnings
 import random
-from sklearn.decomposition import PCA
+from plotly.offline import plot
 
 warnings.filterwarnings('ignore')
 
@@ -27,7 +25,7 @@ PROJECT_ROOT = 'G:/Csouza/nlp/topic_modeling'
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 
-class BertRankingCopy():
+class BertRanking():
     def __init__(self, file_path, dict_models, processed_data_path):
         self.file_path = file_path
         self.dict_models = dict_models
@@ -44,6 +42,8 @@ class BertRankingCopy():
             'Assuntos': 'assuntos',
             'Resumo (Português)': 'resumo'}
         
+        self.charts_path = os.path.join(PROJECT_ROOT, 'charts')
+        
     def import_data(self, sheet_name='Sheet1'):
         try:
             logging.info('Importando dados da planilha...')
@@ -52,6 +52,70 @@ class BertRankingCopy():
         
         except Exception as e:
             logging.error(f'Erro ao importar dados: {str(e)}')
+    
+    def save_dataset(self, dataset, path):
+        try:
+            logging.info('Salvando dataset...')
+
+            df = dataset.to_pandas()
+
+            df.to_parquet(path, index=False)
+        
+        except Exception as e:
+            logging.error(f'Erro ao salvar dataset: {str(e)}')
+
+    def load_dataset(self, path, load_as='datasets'):
+        try:
+            logging.info('Carregando dataset salvo...')
+
+            df = pd.read_parquet(path)
+
+            if load_as == 'pandas':
+                return df
+            elif load_as == 'datasets':
+                return Dataset.from_pandas(df)
+            else:
+                raise ValueError("O argumento 'load_as' deve ser 'pandas' ou 'datasets'.")
+        
+        except Exception as e:
+            logging.error(f'Erro ao carregar dataset: {str(e)}')
+    
+    def save_plot(self, fig, name, path=None, height=None, format='png'):
+        try:
+            logging.info('Salvando gráfico...')
+
+            if path is None:
+                path = os.path.join(self.charts_path, f'BertRanking_{name}.{format}')
+            
+            os.makedirs(self.charts_path, exist_ok=True)
+
+            h = 450
+            if height:
+                h = height
+            w = (h/1080)*1920
+            config = {
+                'toImageButtonOptions': {
+                    'format': 'svg',
+                    'filename': f'BertRanking_{name}',
+                    'height': f'{h}',
+                    'width': f'{w}',
+                },
+                'displayModeBar': True,
+                'displaylogo': False,
+            }
+
+            if height:
+                fig.update_layout(height=height)
+            
+            if format == 'html':
+                fig = plot(fig, output_type='div', include_plotlyjs='cdn', config=config)
+            elif format == 'png':
+                fig.write_image(path, width=w, height=h)
+            else:
+                raise ValueError("O argumento 'format' deve ser 'html' ou 'png'.")
+        
+        except Exception as e:
+            logging.error(f'Erro ao salvar gráfico: {str(e)}')
     
     def clean_text(self, text):
         try:
@@ -196,7 +260,7 @@ class BertRankingCopy():
         except Exception as e:
             logging.error(f'Erro ao gerar embeddings: {str(e)}')
 
-    def generate_embeddings(self, dataset, tokenizer, bert_model, text_col='cleaned_text', keywords_col='keywords', batch_size=8, model_name='bertimbal'):
+    def generate_embeddings(self, dataset, tokenizer, bert_model, text_col='cleaned_text', keywords_col=None, batch_size=8, model_name='bertimbal'):
         try:
             logging.info('Gerando embeddings do dataset...')
 
@@ -210,173 +274,12 @@ class BertRankingCopy():
                     subjects_embeddings = self.get_embeddings(texts=subjects, tokenizer=tokenizer, bert_model=bert_model, batch_size=batch_size)
                     all_keywords_embeddings.append(subjects_embeddings)
                 
-                dataset[f'keywords_embeddings_{model_name}'] = all_keywords_embeddings
+                dataset[f'queries_embeddings_{model_name}'] = all_keywords_embeddings
 
             return dataset
         
         except Exception as e:
             logging.error(f'Erro ao gerar embeddings do dataset: {str(e)}')
-    
-    def add_similarity_column(self, data=None, text_embedding_col='text_embedding_BERT', keywords_embedding_col='keywords_embeddings_BERT', similarity_col='similarity_text_keywords_BERT'):
-        try:
-            logging.info(f'Adicionando coluna de similaridade "{similarity_col}"...')
-
-            if data is None:
-                data = self.embeddings_test_dataset
-            
-            def calculate_similarity(text_emb, keywords_emb_list):
-                keywords_emb = np.vstack(keywords_emb_list)
-                similarities = cosine_similarity([text_emb], keywords_emb)[0] 
-                return similarities.mean()
-
-            data[similarity_col] = data.apply(
-                lambda row: calculate_similarity(row[text_embedding_col], row[keywords_embedding_col]), axis=1
-            )
-
-            logging.info(f'Coluna "{similarity_col}" adicionada com sucesso.')
-
-            return data
-            
-        except Exception as e:
-            logging.error(f'Erro ao calcular a similaridade: {str(e)}')
-    
-    def plot_scatter_similarity(self, data=None, similarity_col_dict={'BERT': 'similarity_text_keywords_BERT', 'BERTimbau': 'similarity_text_keywords_BERTimbau'}):
-        try:
-            fig = go.Figure()
-
-            if data == None:
-                data = self.embeddings_test_dataset
-            
-            for model_name, similarity_col in similarity_col_dict.items():
-                # Adiciona pontos de dispersão para o modelo especificado
-                fig.add_trace(go.Scatter(
-                    x=list(range(len(data))),
-                    y=data[similarity_col],
-                    mode='markers',
-                    name=model_name
-                ))
-
-            # Layout do gráfico
-            fig.update_layout(
-                title=f'<b>Dispersão da similaridade semântica entre textos e palavras-chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
-                xaxis_title='Amostras',
-                yaxis_title='Similaridade',
-                showlegend=True
-            )
-
-            fig.show()
-
-        except Exception as e:
-            logging.error(f'Erro ao plotar dispersão: {str(e)}')
-
-    def plot_similarity_distribution(self, data=None, similarity_col_dict={'BERT': 'similarity_text_keywords_BERT', 'BERTimbau': 'similarity_text_keywords_BERTimbau'}):
-        try:
-            fig = go.Figure()
-
-            if data == None:
-                data = self.embeddings_test_dataset
-
-            for model_name, similarity_col in similarity_col_dict.items():
-                fig.add_trace(go.Histogram(
-                    x=data[similarity_col],
-                    name=model_name,
-                    nbinsx=20,
-                    opacity=0.75
-                ))
-
-            # Atualiza o layout do gráfico
-            fig.update_layout(
-                title=f'<b>Distribuição da similaridade semântica entre textos e palavras-chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
-                xaxis_title='Similaridade Semântica',
-                yaxis_title='Frequência',
-                barmode='overlay',
-                showlegend=True
-            )
-
-            fig.update_traces(opacity=0.6)
-            fig.show()
-
-        except Exception as e:
-            logging.error(f'Erro ao plotar distribuição: {str(e)}')
-    
-    def plot_boxplot_similarity(self, data=None, similarity_col_dict={'BERT': 'similarity_text_keywords_BERT', 'BERTimbau': 'similarity_text_keywords_BERTimbau'}):
-        try:
-            fig = go.Figure()
-
-            if data == None:
-                data = self.embeddings_test_dataset
-
-            for model_name, similarity_col in similarity_col_dict.items():
-                # Adiciona boxplot para BERT
-                fig.add_trace(go.Box(
-                    y=data[similarity_col],
-                    name=model_name
-                ))
-
-            # Layout do gráfico
-            fig.update_layout(
-                title=f'<b>Boxplot da similaridade semântica entre textos e palavras-chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
-                yaxis_title='Similaridade'
-            )
-
-            fig.show()
-
-        except Exception as e:
-            logging.error(f'Erro ao plotar boxplot: {str(e)}')
-    
-    def plot_statistical_summary(self, data=None, similarity_col_dict={'BERT': 'similarity_text_keywords_BERT', 'BERTimbau': 'similarity_text_keywords_BERTimbau'}):
-        try:
-            summaries = {}
-
-            if data == None:
-                data = self.embeddings_test_dataset
-
-            metric_rename = {
-                'count': 'Contagem',
-                'mean': 'Média',
-                'std': 'Desvio Padrão',
-                'min': 'Mínimo',
-                '25%': '1º Quartil (25%)',
-                '50%': 'Mediana (50%)',
-                '75%': '3º Quartil (75%)',
-                'max': 'Máximo'
-            }
-
-            for model_name, similarity_col in similarity_col_dict.items():
-                summary = self.embeddings_test_dataset[similarity_col].describe()
-            
-                summary['count'] = int(summary['count'])
-
-                for metric in summary.index:
-                    if metric != 'count':
-                        summary[metric] = f'{round(summary[metric], 4):.4f}'
-                
-                summaries[model_name] = summary
-            
-                summary.rename(index=metric_rename, inplace=True)
-
-            metrics = summaries[next(iter(summaries))].index
-            values = [summaries[model_name].values for model_name in similarity_col_dict.keys()]
-
-            fig = go.Figure(data=[go.Table(
-                header=dict(values=['Métrica'] + list(similarity_col_dict.keys()),  # Nome das colunas
-                            fill_color='paleturquoise',
-                            align='left'),
-                cells=dict(
-                    values=[metrics] + values,
-                    fill_color='lavender',
-                    align='left'
-                ))
-            ])
-
-            fig.update_layout(
-                title=f'<b>Resumo estatístico da similaridade semântica entre textos e palavras-chaves</b><br>{" vs ".join(similarity_col_dict.keys())}',
-            )
-
-            fig.show()
-
-        except Exception as e:
-            logging.error(f'Erro ao plotar resumo estatístico: {str(e)}')
 
     def get_query_embedding(self, query_text, tokenizer, bert_model):
         query_text = self.clean_text(query_text)
@@ -418,33 +321,29 @@ class BertRankingCopy():
         
         except Exception as e:
             logging.error(f'Erro ao ranquear textos: {str(e)}')
-
-    def save_dataset(self, dataset, path):
+    
+    def add_similarity_column(self, data=None, text_embedding_col='text_embedding_BERT', query_embedding_col='queries_embeddings_BERT', similarity_col='similarity_text_query_BERT'):
         try:
-            logging.info('Salvando dataset...')
+            logging.info(f'Adicionando coluna de similaridade "{similarity_col}"...')
 
-            df = dataset.to_pandas()
+            if data is None:
+                data = self.embeddings_test_dataset
+            
+            def calculate_similarity(text_emb, queries_emb_list):
+                queries_emb = np.vstack(queries_emb_list)
+                similarities = cosine_similarity([text_emb], queries_emb)[0] 
+                return similarities.mean()
 
-            df.to_parquet(path, index=False)
-        
+            data[similarity_col] = data.apply(
+                lambda row: calculate_similarity(row[text_embedding_col], row[query_embedding_col]), axis=1
+            )
+
+            logging.info(f'Coluna "{similarity_col}" adicionada com sucesso.')
+
+            return data
+            
         except Exception as e:
-            logging.error(f'Erro ao salvar dataset: {str(e)}')
-
-    def load_dataset(self, path, load_as='datasets'):
-        try:
-            logging.info('Carregando dataset salvo...')
-
-            df = pd.read_parquet(path)
-
-            if load_as == 'pandas':
-                return df
-            elif load_as == 'datasets':
-                return Dataset.from_pandas(df)
-            else:
-                raise ValueError("O argumento 'load_as' deve ser 'pandas' ou 'datasets'.")
-        
-        except Exception as e:
-            logging.error(f'Erro ao carregar dataset: {str(e)}')
+            logging.error(f'Erro ao calcular a similaridade: {str(e)}')
 
     def generate_random_queries(self, data=None, n_queries=30, text_col='cleaned_text'):
         try:
@@ -482,15 +381,175 @@ class BertRankingCopy():
         
         except Exception as e:
             logging.error(f'Erro ao obter embeddings do top-n: {str(e)}')
+    
+    def calculate_similarities(self, top_n_embeddings, queries_embeddings, top_n=5):
+        try:
+            similarities_dict = {rank: [] for rank in range(1, top_n+1)}
+            
+            for rank in range(1, top_n+1):
+                for i, doc_embedding in enumerate(top_n_embeddings[rank]):
+                    query_embedding = queries_embeddings[i]
+                    
+                    similarity = cosine_similarity([doc_embedding], [query_embedding])[0][0]
+                    similarities_dict[rank].append(similarity)
+            
+            return similarities_dict
+        except Exception as e:
+            logging.error(f'Erro ao calcular as similaridades: {str(e)}')
 
-    def plot_boxplot_embeddings(self, title, top_n_embeddings, queries_embeddings, top_n=5):
+    def aggregate_similarities(self, similarities_dict, top_n=5):
+        try:
+            aggregated_similarities = []
+            
+            for rank in range(1, top_n+1):
+                aggregated_similarities.extend(similarities_dict[rank])
+            
+            return aggregated_similarities
+        except Exception as e:
+            logging.error(f'Erro ao agregar as similaridades: {str(e)}')
+
+    def plot_scatter_similarity(self, title, aggregated_similarities_dict, save_plot=True, fig_name='scatter_similarity'):
+        try:
+            fig = go.Figure()
+
+            for model_name, aggregated_similarities in aggregated_similarities_dict.items():
+                fig.add_trace(go.Scatter(
+                    x=list(range(len(aggregated_similarities))),
+                    y=aggregated_similarities,
+                    mode='markers',
+                    name=model_name
+                ))
+
+            # Layout do gráfico
+            fig.update_layout(
+                title=title,
+                xaxis_title='Amostras',
+                yaxis_title='Similaridade',
+                showlegend=True
+            )
+
+            fig.show()
+
+            if save_plot:
+                self.save_plot(fig, fig_name)
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar dispersão: {str(e)}')
+
+    def plot_similarity_distribution(self, title, aggregated_similarities_dict, save_plot=True, fig_name='similarity_distribution'):
+        try:
+            fig = go.Figure()
+
+            for model_name, aggregated_similarities in aggregated_similarities_dict.items():
+                fig.add_trace(go.Histogram(
+                    x=aggregated_similarities,
+                    name=model_name,
+                    nbinsx=20,
+                    opacity=0.75
+                ))
+
+            fig.update_layout(
+                title=title,
+                xaxis_title='Similaridade Semântica',
+                yaxis_title='Frequência',
+                barmode='overlay',
+                showlegend=True
+            )
+
+            fig.update_traces(opacity=0.6)
+            fig.show()
+
+            if save_plot:
+                self.save_plot(fig, fig_name)
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar distribuição: {str(e)}')
+
+    def plot_boxplot_similarity(self, title, aggregated_similarities_dict, save_plot=True, fig_name='boxplot_similarity'):
+        try:
+            fig = go.Figure()
+
+            for model_name, aggregated_similarities in aggregated_similarities_dict.items():
+                fig.add_trace(go.Box(
+                    y=aggregated_similarities,
+                    name=model_name
+                ))
+
+            fig.update_layout(
+                title=title,
+                yaxis_title='Similaridade'
+            )
+
+            fig.show()
+
+            if save_plot:
+                self.save_plot(fig, fig_name)
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar boxplot: {str(e)}')
+    
+    def plot_statistical_summary(self, title, aggregated_similarities_dict, save_plot=True, fig_name='statistical_summary'):
+        try:
+            summaries = {}
+
+            metric_rename = {
+                'count': 'Contagem',
+                'mean': 'Média',
+                'std': 'Desvio Padrão',
+                'min': 'Mínimo',
+                '25%': '1º Quartil (25%)',
+                '50%': 'Mediana (50%)',
+                '75%': '3º Quartil (75%)',
+                'max': 'Máximo'
+            }
+
+            for model_name, aggregated_similarities in aggregated_similarities_dict.items():
+                summary = pd.Series(aggregated_similarities).describe()
+            
+                summary['count'] = int(summary['count'])
+
+                for metric in summary.index:
+                    if metric != 'count':
+                        summary[metric] = f'{round(summary[metric], 4):.4f}'
+                
+                summaries[model_name] = summary
+            
+                summary.rename(index=metric_rename, inplace=True)
+
+            metrics = summaries[next(iter(summaries))].index
+            values = [summaries[model_name].values for model_name in aggregated_similarities_dict.keys()]
+
+            fig = go.Figure(data=[go.Table(
+                header=dict(values=['Métrica'] + list(aggregated_similarities_dict.keys()),  # Nome das colunas
+                            fill_color='paleturquoise',
+                            align='left'),
+                cells=dict(
+                    values=[metrics] + values,
+                    fill_color='lavender',
+                    align='left'
+                ))
+            ])
+
+            fig.update_layout(
+                title=title,
+            )
+
+            fig.show()
+
+            if save_plot:
+                self.save_plot(fig, fig_name)
+
+        except Exception as e:
+            logging.error(f'Erro ao plotar resumo estatístico: {str(e)}')
+
+    def plot_boxplot_embeddings(self, title, top_n_embeddings, queries_embeddings, top_n=5, save_plot=True, fig_name='boxplot_embeddings'):
         try:
             similarities = {rank: [] for rank in range(1, top_n+1)}
 
             for rank in range(1, top_n+1):
                 for i, doc_embedding in enumerate(top_n_embeddings[rank]):
                     query_embedding = queries_embeddings[i]
-                    # Calcula a similaridade de cosseno entre a query e os documentos
+                    
                     similarity = cosine_similarity([doc_embedding], [query_embedding])[0][0]
                     similarities[rank].append(similarity)
 
@@ -511,25 +570,49 @@ class BertRankingCopy():
 
             fig.show()
 
+            if save_plot:
+                self.save_plot(fig, fig_name)
+
         except Exception as e:
             logging.error(f'Erro ao plotar Boxplot para o top-n: {str(e)}')
 
-    def visualize_boxplot(self, tokenizer=None, bert_model=None, data=None, text_embedding_col='text_embedding_BERT', model_name='BERT', top_n=5, n_queries=30, text_col='cleaned_text', return_col='titulo'):
+    def visualize_results_rank(self, tokenizer=None, bert_model=None, data=None, text_embedding_dict={'BERT': 'text_embedding_BERT', 'BERTimbau': 'text_embedding_BERTimbau'}, top_n=5, n_queries=30, text_col='cleaned_text', return_col='titulo'):
         try:
             if data is None:
                 data = self.embeddings_test_dataset
             
-            if tokenizer is None or bert_model is None:
-                tokenizer, bert_model = self.model_dict[model_name]['tokenizer'], self.model_dict[model_name]['model']
+            aggregated_similarities_dict = {}
+            for model_name, text_embedding_col in text_embedding_dict.items():
+                if tokenizer is None or bert_model is None:
+                    tokenizer, bert_model = self.model_dict[model_name]['tokenizer'], self.model_dict[model_name]['model']
+                
+                queries = self.generate_random_queries(data=data, n_queries=n_queries, text_col=text_col)
+                top_n_embeddings, queries_embeddings = self.get_embeddings_queries(queries=queries, tokenizer=tokenizer, bert_model=bert_model, data=data, text_embedding_col=text_embedding_col, model_name=model_name, top_n=top_n, return_col=return_col)
+                
+                boxplot_embeddings_title = f'<b>Distribuição das similaridades semânticas dos documentos ranqueados em relação às queries</b><br>Modelo: {model_name}, top {top_n} posições, número de queries: {n_queries}'
+                self.plot_boxplot_embeddings(title=boxplot_embeddings_title, top_n_embeddings=top_n_embeddings, queries_embeddings=queries_embeddings, top_n=top_n, fig_name=f'boxplot_embeddings_{model_name}')
+                
+                similarities_dict = self.calculate_similarities(top_n_embeddings, queries_embeddings, top_n=top_n)
+                
+                aggregated_similarities = self.aggregate_similarities(similarities_dict, top_n=top_n)
+
+                aggregated_similarities_dict[model_name] = aggregated_similarities
+
+            def generate_title(prefix, model_name=model_name, n_queries=n_queries):
+                return f'<b>{prefix} das similaridades semânticas dos documentos ranqueados em relação às queries</b><br>Modelo: {model_name}, número de queries: {n_queries}'
+
+            titles = ('Dispersão', 'Resumo estatístico', 'Distribuição', 'Boxplot')
+            scatter_similarity_title, statistical_summary_title, similarity_distribution_title, boxplot_similarity_title = (
+                generate_title(title) for title in titles
+            )
             
-            queries = self.generate_random_queries(data=data, n_queries=n_queries, text_col=text_col)
-            top_n_embeddings, queries_embeddings = self.get_embeddings_queries(queries=queries, tokenizer=tokenizer, bert_model=bert_model, data=data, text_embedding_col=text_embedding_col, model_name=model_name, top_n=top_n, return_col=return_col)
-            
-            title = f'<b>Distribuição das similaridades semânticas dos documentos ranqueados em relação às queries</b><br>{model_name} - top {top_n} posições, número de queries: {n_queries}'
-            self.plot_boxplot_embeddings(title=title, top_n_embeddings=top_n_embeddings, queries_embeddings=queries_embeddings, top_n=top_n)
-            
+            self.plot_scatter_similarity(scatter_similarity_title, aggregated_similarities_dict)
+            self.plot_similarity_distribution(similarity_distribution_title, aggregated_similarities_dict)
+            self.plot_boxplot_similarity(boxplot_similarity_title, aggregated_similarities_dict)
+            self.plot_statistical_summary(statistical_summary_title, aggregated_similarities_dict)
+
         except Exception as e:
-            logging.error(f'Erro ao visualizar Boxplot e Dispersão para o top-n: {str(e)}')
+            logging.error(f'Erro ao visualizar resultados para o top-n: {str(e)}')
 
     def execute(self, test_size=0.2):
         try:
@@ -625,18 +708,14 @@ class BertRankingCopy():
 
                     self.save_dataset(tokenized_test_dataset, tokenized_test_dataset_model_path)
             
-            data_dict, self.model_dict, similarity_col_dict, model_name_list = {}, {}, {}, []
+            data_dict, self.model_dict, model_name_list = {}, {}, []
 
             rename_cols = ['input_ids', 'token_type_ids', 'attention_mask']
             for model_name, opt in self.dict_models.items():
                 data = self.load_dataset(os.path.join(self.processed_data_path, f'tokenized_test_dataset_{model_name}.parquet'), load_as='pandas')
                 
-                data = self.add_similarity_column(data=data, text_embedding_col=f'text_embedding_{model_name}', keywords_embedding_col=f'keywords_embeddings_{model_name}', similarity_col=f'similarity_text_keywords_{model_name}')
-                
                 data_dict[model_name] = data.rename(columns={col: f'{col}_{model_name}' for col in rename_cols})
 
-                similarity_col_dict[model_name] = f'similarity_text_keywords_{model_name}'
-                
                 model_name_list.append(model_name)
 
                 model_path, tokenizer_path = (opt['model_path'], opt['tokenizer_path'])
@@ -656,11 +735,6 @@ class BertRankingCopy():
                 lambda left, right: left.merge(right, on=cols_in_common, how='inner'), 
                 [data_dict[model_name] for model_name in model_name_list]
             )
-
-            self.plot_scatter_similarity(similarity_col_dict=similarity_col_dict)
-            self.plot_similarity_distribution(similarity_col_dict=similarity_col_dict)
-            self.plot_boxplot_similarity(similarity_col_dict=similarity_col_dict)
-            self.plot_statistical_summary(similarity_col_dict=similarity_col_dict)
 
             end = time.time() - start
             logging.info(f'Execução completa em {end:.2f} segundos.')
@@ -699,5 +773,5 @@ if __name__ == '__main__':
 
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
     
-    BertRanking = BertRankingCopy(file_path=file_path, dict_models=dict_models, processed_data_path=processed_data_path)
+    BertRanking = BertRanking(file_path=file_path, dict_models=dict_models, processed_data_path=processed_data_path)
     BertRanking.execute()
