@@ -16,7 +16,7 @@ import locale
 import plotly.graph_objects as go
 import warnings
 import random
-from plotly.offline import plot
+import plotly.io as pio
 
 warnings.filterwarnings('ignore')
 
@@ -43,6 +43,18 @@ class BertRanking():
             'Resumo (Português)': 'resumo'}
         
         self.charts_path = os.path.join(PROJECT_ROOT, 'charts')
+
+        self.fig_config = {
+            'toImageButtonOptions': {
+                'format': 'svg',
+                'filename': 'BertRanking',
+                'height': 450,
+                'width': 1500,
+                'scale': 6
+            },
+            'displayModeBar': True,
+            'displaylogo': False,
+        }
         
     def import_data(self, sheet_name='Sheet1'):
         try:
@@ -79,43 +91,6 @@ class BertRanking():
         
         except Exception as e:
             logging.error(f'Erro ao carregar dataset: {str(e)}')
-    
-    def save_plot(self, fig, name, path=None, height=None, format='png'):
-        try:
-            logging.info('Salvando gráfico...')
-
-            if path is None:
-                path = os.path.join(self.charts_path, f'BertRanking_{name}.{format}')
-            
-            os.makedirs(self.charts_path, exist_ok=True)
-
-            h = 450
-            if height:
-                h = height
-            w = (h/1080)*1920
-            config = {
-                'toImageButtonOptions': {
-                    'format': 'svg',
-                    'filename': f'BertRanking_{name}',
-                    'height': f'{h}',
-                    'width': f'{w}',
-                },
-                'displayModeBar': True,
-                'displaylogo': False,
-            }
-
-            if height:
-                fig.update_layout(height=height)
-            
-            if format == 'html':
-                fig = plot(fig, output_type='div', include_plotlyjs='cdn', config=config)
-            elif format == 'png':
-                fig.write_image(path, width=w, height=h)
-            else:
-                raise ValueError("O argumento 'format' deve ser 'html' ou 'png'.")
-        
-        except Exception as e:
-            logging.error(f'Erro ao salvar gráfico: {str(e)}')
     
     def clean_text(self, text):
         try:
@@ -408,7 +383,7 @@ class BertRanking():
         except Exception as e:
             logging.error(f'Erro ao agregar as similaridades: {str(e)}')
 
-    def plot_scatter_similarity(self, title, aggregated_similarities_dict, save_plot=True, fig_name='scatter_similarity'):
+    def plot_scatter_similarity(self, title, aggregated_similarities_dict):
         try:
             fig = go.Figure()
 
@@ -427,16 +402,13 @@ class BertRanking():
                 yaxis_title='Similaridade',
                 showlegend=True
             )
-
-            fig.show()
-
-            if save_plot:
-                self.save_plot(fig, fig_name)
+            
+            fig.show(config=self.fig_config)
 
         except Exception as e:
             logging.error(f'Erro ao plotar dispersão: {str(e)}')
 
-    def plot_similarity_distribution(self, title, aggregated_similarities_dict, save_plot=True, fig_name='similarity_distribution'):
+    def plot_similarity_distribution(self, title, aggregated_similarities_dict):
         try:
             fig = go.Figure()
 
@@ -457,15 +429,13 @@ class BertRanking():
             )
 
             fig.update_traces(opacity=0.6)
-            fig.show()
-
-            if save_plot:
-                self.save_plot(fig, fig_name)
+            
+            fig.show(config=self.fig_config)
 
         except Exception as e:
             logging.error(f'Erro ao plotar distribuição: {str(e)}')
 
-    def plot_boxplot_similarity(self, title, aggregated_similarities_dict, save_plot=True, fig_name='boxplot_similarity'):
+    def plot_boxplot_similarity(self, title, aggregated_similarities_dict):
         try:
             fig = go.Figure()
 
@@ -479,16 +449,13 @@ class BertRanking():
                 title=title,
                 yaxis_title='Similaridade'
             )
-
-            fig.show()
-
-            if save_plot:
-                self.save_plot(fig, fig_name)
+            
+            fig.show(config=self.fig_config)
 
         except Exception as e:
             logging.error(f'Erro ao plotar boxplot: {str(e)}')
     
-    def plot_statistical_summary(self, title, aggregated_similarities_dict, save_plot=True, fig_name='statistical_summary'):
+    def plot_statistical_summary(self, title, aggregated_similarities_dict):
         try:
             summaries = {}
 
@@ -534,15 +501,12 @@ class BertRanking():
                 title=title,
             )
 
-            fig.show()
-
-            if save_plot:
-                self.save_plot(fig, fig_name)
+            fig.show(config=self.fig_config)
 
         except Exception as e:
             logging.error(f'Erro ao plotar resumo estatístico: {str(e)}')
 
-    def plot_boxplot_embeddings(self, title, top_n_embeddings, queries_embeddings, top_n=5, save_plot=True, fig_name='boxplot_embeddings'):
+    def plot_boxplot_embeddings(self, title, top_n_embeddings, queries_embeddings, top_n=5):
         try:
             similarities = {rank: [] for rank in range(1, top_n+1)}
 
@@ -568,10 +532,7 @@ class BertRanking():
                 xaxis_title='Posição no Ranking'
             )
 
-            fig.show()
-
-            if save_plot:
-                self.save_plot(fig, fig_name)
+            fig.show(config=self.fig_config)
 
         except Exception as e:
             logging.error(f'Erro ao plotar Boxplot para o top-n: {str(e)}')
@@ -625,7 +586,7 @@ class BertRanking():
                 data_list.append(os.path.join(self.processed_data_path, f'tokenized_test_dataset_{model_name}.parquet'))
 
             check = [os.path.isfile(data) for data in data_list]
-
+            
             if not all(check):
                 s1 = time.time()
                 data = self.import_data()
@@ -673,7 +634,9 @@ class BertRanking():
                         os.path.isfile(os.path.join(tokenizer_path, 'vocab.txt'))
                     )
 
-                    if not model_exists or not tokenizer_exists:
+                    check_model = [model_exists, tokenizer_exists]
+
+                    if not all(check_model):
                         logging.info(f'Modelo {model_name} não encontrado. Iniciando o treinamento...')
                         trainer = self.train_model(
                             bert_model=bert_model,
