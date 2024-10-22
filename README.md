@@ -1,42 +1,30 @@
-### README - Projeto BertRanking
-
 ---
 
-## Visão Geral
+# BertRanking
 
-O **BertRanking** é um sistema projetado para comparar modelos de linguagem como **BERTimbau** e **BERT** utilizando embeddings gerados a partir dos textos e tópicos de artigos científicos. O sistema permite o ranqueamento de artigos com base na similaridade semântica entre um artigo de consulta e os artigos da base.
-
----
+Este projeto implementa um sistema de ranqueamento semântico de projetos científicos utilizando modelos de linguagem BERT. Foram comparados o BERT multilíngue e o BERTimbau, especializado em português, com o objetivo de identificar qual modelo apresenta melhor desempenho em tarefas de similaridade semântica.
 
 ## Estrutura do Projeto
 
-- **Classe BertRanking**: Realiza a importação, preparação e tokenização dos dados, treina os modelos, gera embeddings e ranqueia artigos com base em similaridade semântica.
-- **Processamento de Dados**: Realiza a limpeza, padronização e preparação dos textos e tópicos de artigos científicos.
-- **Comparação de Modelos**: Gera embeddings usando diferentes modelos de linguagem e compara seus desempenhos com base na similaridade de cosseno.
+O projeto é implementado em Python 3.7+ e utiliza as seguintes bibliotecas principais:
+- `transformers` (Hugging Face)
+- `datasets`
+- `torch`
+- `scikit-learn`
+- `pandas`
+- `numpy`
+- `plotly`
 
----
+### Métodos Principais da Classe `BertRanking`:
 
-## Funcionalidades
-
-- **Importação de Dados**: Carrega e prepara dados de artigos científicos a partir de um arquivo Excel.
-- **Tokenização**: Converte textos em tokens utilizando modelos BERT ou BERTimbau.
-- **Treinamento de Modelos**: Permite o treinamento de modelos usando **Masked Language Modeling (MLM)**.
-- **Geração de Embeddings**: Gera representações vetoriais (embeddings) para textos e tópicos.
-- **Ranqueamento de Artigos**: Ranqueia artigos com base na similaridade de cosseno entre o texto de consulta e os artigos da base.
-- **Comparação de Modelos**: Compara a performance dos modelos com base na similaridade semântica calculada.
-
----
-
-## Requisitos
-
-- **Python 3.7+**
-- Instalar dependências:
-
-```bash
-poetry install
-```
-
----
+1. **`import_data()`**: Importa os dados de projetos científicos da FAPESP a partir de um arquivo Excel.
+2. **`prepare_data()`**: Prepara os dados de entrada, filtrando colunas, convertendo datas e limpando textos.
+3. **`tokenize_function()`**: Tokeniza os textos utilizando o `BertTokenizer`.
+4. **`train_model()`**: Treina os modelos BERT com base nos resumos dos projetos científicos.
+5. **`get_embeddings()`**: Gera embeddings para os textos e palavras-chave.
+6. **`calculate_similarities()`**: Calcula as similaridades entre os textos e queries.
+7. **`rank_texts()`**: Rankeia os textos com base na similaridade de cosseno entre os embeddings dos textos e das queries.
+8. **`visualize_results_rank()`**: Executa a visualização dos resultados de similaridade com base no ranqueamento de textos, gerando gráficos de dispersão, distribuição, boxplots e sumários estatísticos para comparar os modelos BERT e BERTimbau.
 
 ## Estrutura de Arquivos
 
@@ -67,32 +55,19 @@ BertRanking/
     └───BERT
 ```
 
----
-
-## Métodos Principais
-
-- **`import_data`**: Carrega os dados de artigos a partir de um arquivo Excel.
-- **`clean_text`**: Realiza a limpeza dos textos, removendo caracteres especiais e padronizando o conteúdo.
-- **`tokenize_function`**: Aplica a tokenização dos textos utilizando os modelos de linguagem.
-- **`train_model`**: Treina ou ajusta os modelos de linguagem utilizando **Masked Language Modeling**.
-- **`get_embeddings`**: Gera embeddings dos textos e tópicos utilizando os modelos BERT ou BERTimbau.
-- **`rank_texts`**: Ranqueia artigos da base com base na similaridade semântica do artigo de consulta.
-- **`compare_models`**: Compara a performance dos modelos com base na similaridade semântica calculada entre os embeddings.
-
----
-
 ## Resultados
 
-- **Similaridade Semântica**: Métricas de similaridade entre o artigo de consulta e os artigos da base, utilizando a média e desvio padrão das similaridades.
-- **Ranqueamento de Artigos**: Lista de artigos ranqueados pela similaridade semântica com o artigo de consulta.
-- **Comparação de Modelos**: Compara os resultados entre os modelos BERT e BERTimbau com base na similaridade semântica.
+Os resultados indicam que o BERT multilíngue apresentou maior consistência nos valores de similaridade semântica, enquanto o BERTimbau demonstrou maior variação. Ambos os modelos são capazes de identificar os resumos mais relevantes, mas o BERT multilíngue se destacou por sua robustez em contextos variados.
 
----
+## Como Executar
 
-## Autor
+1. **Instalar as dependências**: 
+   ```
+   poetry install
+   ```
 
-Desenvolvido por **Claudiomar Mendes** como parte de um projeto para ranqueamento de artigos científicos utilizando técnicas de **Processamento de Linguagem Natural (NLP)**.
-
----
-
-Este README documenta o projeto **BertRanking**, que ranqueia artigos científicos usando os modelos **BERTimbau** e **BERT**, com foco em comparação de similaridade semântica.
+2. **Executar a pipeline**:
+   ```
+   python src/nlp_pipeline/bert.py
+   ```
+--- 
