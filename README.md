@@ -68,6 +68,6 @@ Os resultados indicam que o BERT multilíngue apresentou maior consistência nos
 
 2. **Executar a pipeline**:
    ```
-   python src/nlp_pipeline/bert.py
+   python src/nlp_pipeline/bertranking.py
    ```
 --- 

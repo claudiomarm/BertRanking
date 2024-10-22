@@ -16,12 +16,12 @@ import locale
 import plotly.graph_objects as go
 import warnings
 import random
-import plotly.io as pio
 
 warnings.filterwarnings('ignore')
 
 # Definicao da raiz do projeto
-PROJECT_ROOT = 'G:/Csouza/nlp/topic_modeling'
+current_file_path = os.path.dirname(__file__)
+PROJECT_ROOT = os.path.abspath(os.path.join(current_file_path, '..', '..', '..'))
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 
