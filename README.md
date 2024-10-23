@@ -2,11 +2,11 @@
 
 # BertRanking
 
-Este projeto implementa um sistema de ranqueamento semântico de projetos científicos utilizando modelos de linguagem BERT. Foram comparados o BERT multilíngue e o BERTimbau, especializado em português, com o objetivo de identificar qual modelo apresenta melhor desempenho em tarefas de similaridade semântica.
+This project implements a semantic ranking system for scientific projects using BERT language models. The multilingual BERT and BERTimbau, specialized in Portuguese, were compared to identify which model performs better in semantic similarity tasks.
 
-## Estrutura do Projeto
+## Project Structure
 
-O projeto é implementado em Python 3.7+ e utiliza as seguintes bibliotecas principais:
+The project is implemented in Python 3.7+ and uses the following key libraries:
 - `transformers` (Hugging Face)
 - `datasets`
 - `torch`
@@ -15,18 +15,18 @@ O projeto é implementado em Python 3.7+ e utiliza as seguintes bibliotecas prin
 - `numpy`
 - `plotly`
 
-### Métodos Principais da Classe `BertRanking`:
+### Main Methods of the `BertRanking` Class:
 
-1. **`import_data()`**: Importa os dados de projetos científicos da FAPESP a partir de um arquivo Excel.
-2. **`prepare_data()`**: Prepara os dados de entrada, filtrando colunas, convertendo datas e limpando textos.
-3. **`tokenize_function()`**: Tokeniza os textos utilizando o `BertTokenizer`.
-4. **`train_model()`**: Treina os modelos BERT com base nos resumos dos projetos científicos.
-5. **`get_embeddings()`**: Gera embeddings para os textos e palavras-chave.
-6. **`calculate_similarities()`**: Calcula as similaridades entre os textos e queries.
-7. **`rank_texts()`**: Rankeia os textos com base na similaridade de cosseno entre os embeddings dos textos e das queries.
-8. **`visualize_results_rank()`**: Executa a visualização dos resultados de similaridade com base no ranqueamento de textos, gerando gráficos de dispersão, distribuição, boxplots e sumários estatísticos para comparar os modelos BERT e BERTimbau.
+1. **`import_data()`**: Imports FAPESP scientific project data from an Excel file.
+2. **`prepare_data()`**: Prepares the input data by filtering columns, converting dates, and cleaning text.
+3. **`tokenize_function()`**: Tokenizes the texts using `BertTokenizer`.
+4. **`train_model()`**: Trains the BERT models based on the project summaries.
+5. **`get_embeddings()`**: Generates embeddings for texts and keywords.
+6. **`calculate_similarities()`**: Calculates the similarities between the texts and queries.
+7. **`rank_texts()`**: Ranks the texts based on the cosine similarity between the text and query embeddings.
+8. **`visualize_results_rank()`**: Visualizes similarity results based on text ranking, generating scatter plots, distributions, boxplots, and statistical summaries to compare BERT and BERTimbau models.
 
-## Estrutura de Arquivos
+## File Structure
 
 ```
 BertRanking/
@@ -55,19 +55,19 @@ BertRanking/
     └───BERT
 ```
 
-## Resultados
+## Results
 
-Os resultados indicam que o BERT multilíngue apresentou maior consistência nos valores de similaridade semântica, enquanto o BERTimbau demonstrou maior variação. Ambos os modelos são capazes de identificar os resumos mais relevantes, mas o BERT multilíngue se destacou por sua robustez em contextos variados.
+The results indicate that the multilingual BERT showed greater consistency in semantic similarity values, while BERTimbau demonstrated more variation. Both models are capable of identifying the most relevant summaries, but the multilingual BERT stood out for its robustness in diverse contexts.
 
-## Como Executar
+## How to Run
 
-1. **Instalar as dependências**: 
+1. **Install dependencies**:
    ```
    poetry install
    ```
 
-2. **Executar a pipeline**:
+2. **Run the pipeline**:
    ```
    python src/nlp_pipeline/bertranking.py
    ```
---- 
+---
