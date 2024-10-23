@@ -26,10 +26,11 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 
 class BertRanking():
-    def __init__(self, file_path, dict_models, processed_data_path):
+    def __init__(self, file_path, dict_models, processed_data_path, area='Medicina'):
         self.file_path = file_path
         self.dict_models = dict_models
         self.processed_data_path = processed_data_path
+        self.area = area
         
         self.variables = {
             'N. Processo_B.V': 'n_processo',
@@ -125,7 +126,7 @@ class BertRanking():
 
             full_data = full_data.drop(columns=['data'])
 
-            data_train_test = full_data[full_data['assuntos'].notnull() & full_data['palavras_chave'].notnull() & (full_data['area'] == 'Medicina')]
+            data_train_test = full_data[full_data['assuntos'].notnull() & full_data['palavras_chave'].notnull() & (full_data['area'] == self.area)]
 
             data_train_test['titulo'] = data_train_test['titulo'].astype(str)
             data_train_test['palavras_chave'] = data_train_test['palavras_chave'].astype(str)
