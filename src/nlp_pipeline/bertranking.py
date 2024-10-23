@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore')
 
 # Definicao da raiz do projeto
 current_file_path = os.path.dirname(__file__)
-PROJECT_ROOT = os.path.abspath(os.path.join(current_file_path, '..', '..', '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(current_file_path, '..', '..'))
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 
