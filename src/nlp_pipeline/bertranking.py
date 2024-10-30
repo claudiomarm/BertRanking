@@ -552,7 +552,7 @@ class BertRanking():
                 top_n_embeddings, queries_embeddings = self.get_embeddings_queries(queries=queries, tokenizer=tokenizer, bert_model=bert_model, data=data, text_embedding_col=text_embedding_col, model_name=model_name, top_n=top_n, return_col=return_col)
                 
                 boxplot_embeddings_title = f'<b>Distribuição das similaridades semânticas dos documentos ranqueados em relação às queries</b><br>Modelo: {model_name}, top {top_n} posições, número de queries: {n_queries}'
-                self.plot_boxplot_embeddings(title=boxplot_embeddings_title, top_n_embeddings=top_n_embeddings, queries_embeddings=queries_embeddings, top_n=top_n, fig_name=f'boxplot_embeddings_{model_name}')
+                self.plot_boxplot_embeddings(title=boxplot_embeddings_title, top_n_embeddings=top_n_embeddings, queries_embeddings=queries_embeddings, top_n=top_n)
                 
                 similarities_dict = self.calculate_similarities(top_n_embeddings, queries_embeddings, top_n=top_n)
                 
