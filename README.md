@@ -1,6 +1,7 @@
 ---
 
 # BertRanking
+![IMG_5773](https://github.com/user-attachments/assets/2ec70286-5b8f-40b8-b806-d6930c55fe6f)
 
 This project implements a semantic ranking system for scientific projects using BERT language models. The multilingual BERT and BERTimbau, specialized in Portuguese, were compared to identify which model performs better in semantic similarity tasks.
 
